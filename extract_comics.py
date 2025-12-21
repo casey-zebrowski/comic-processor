@@ -130,8 +130,8 @@ def process_directory(input_dir, output_dir, recursive=False):
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     
-    # Find comic book files
-    patterns = ['*.cbz', '*.cbr', '*.zip', '*.CBZ', '*.CBR', '*.ZIP']
+    # Find comic book files (case-insensitive)
+    patterns = ['*.[cC][bB][zZ]', '*.[cC][bB][rR]', '*.[zZ][iI][pP]']
     comic_files = []
     
     if recursive:

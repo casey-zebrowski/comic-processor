@@ -1,0 +1,8 @@
+# Optional dependencies for comic book extraction
+
+# For CBR (RAR) file support
+# Note: Also requires unrar utility to be installed on the system
+# Ubuntu/Debian: sudo apt-get install unrar
+# macOS: brew install unrar
+# Windows: Download from https://www.rarlab.com/
+rarfile>=4.0

@@ -1,175 +1,208 @@
-# Project Guide
+# Comic Processor Project Guide
 
 ## Project Overview
 
-This is a modern web application built with TypeScript and React. The project follows a component-based architecture with clear separation of concerns, utilizing modern development practices and tools.
+This is a Python-based comic book processing tool designed to automate the organization and management of comic book collections. The project provides functionality for creating standardized folder structures, processing comic files, and integrating with external APIs like ComicVine for metadata retrieval.
 
 ### Key Technologies Used
-- **Frontend**: React 18 with TypeScript
-- **Build Tool**: Vite
-- **Styling**: CSS Modules and Tailwind CSS
-- **State Management**: React Context API and custom hooks
-- **Testing**: Jest and React Testing Library
-- **Deployment**: GitHub Actions for CI/CD
 
-### High-Level Architecture
-The application follows a component-driven architecture with:
-- A clear separation between presentation components and container components
-- Centralized state management using React Context
-- Modular file structure organized by feature areas
-- Component-based design with reusable UI elements
+- **Python 3.x**: Main programming language
+- **requests**: HTTP library for API interactions
+- **python-dotenv**: Environment variable management
+
+### High-level Architecture
+
+The project follows a modular approach where:
+
+- `comic-processor.py` contains the core processing logic and ComicVine API integration
+- Folder creation functionality is implemented to organize comics systematically
+- API integration allows for metadata enrichment from ComicVine database
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js (version 16 or higher)
-- npm or yarn package manager
+
+- Python 3.6 or higher
+- pip package manager
 
 ### Installation
+
 1. Clone the repository
-2. Install dependencies: `npm install` or `yarn install`
-3. Start development server: `npm run dev` or `yarn dev`
+2. Install dependencies:
 
-### Basic Usage Examples
-```bash
-# Development server
-npm run dev
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Build for production
-npm run build
+### Basic Usage
 
-# Run tests
-npm test
+```python
+# Import and use the comic processor
+import comic_processor
 
-# Lint code
-npm run lint
+# Create required folders (will be created in parent directory)
+comic_processor.create_folders()
+
+# Fetch comics from ComicVine API
+comics = comic_processor.fetch_comics('spider-man', 10)
+
+# Fetch volumes from ComicVine API  
+volumes = comic_processor.fetch_volumes('marvel', 5)
 ```
 
-### Running Tests
-Tests are written using Jest and React Testing Library. Run with:
-- `npm test` - Run all tests in watch mode
-- `npm run test:coverage` - Run tests with coverage report
-- `npm run test:ci` - Run tests in CI environment
+### Environment Setup
+
+To use the ComicVine API integration:
+
+1. Get a free API key from [ComicVine API](https://comicvine.gamespot.com/api/)
+2. Set it as an environment variable:
+
+   ```bash
+   export COMICVINE_API_KEY=your_api_key_here
+   ```
 
 ## Project Structure
 
-```
-.
-├── src/
-│   ├── components/          # Reusable UI components
-│   ├── features/            # Feature-specific modules
-│   ├── hooks/               # Custom React hooks
-│   ├── services/            # API and data services
-│   ├── store/               # State management (if applicable)
-│   ├── utils/               # Utility functions
-│   ├── App.tsx              # Main application component
-│   └── main.tsx             # Entry point
-├── public/
-├── tests/
-├── assets/
-├── .env                     # Environment variables
-├── package.json             # Dependencies and scripts
-└── README.md                # Project documentation
-```
+### Main Directories and Files
 
-### Key Files and Their Roles
-- `src/main.tsx` - Application entry point
-- `src/App.tsx` - Main application component
-- `package.json` - Project metadata and scripts
-- `tsconfig.json` - TypeScript configuration
-- `vite.config.ts` - Vite build configuration
+- `comic-processor.py`: Core processing logic and ComicVine API integration
+- `README.md`: Project documentation
+- `requirements.txt`: Python dependencies
+- `.env.example`: Example environment variable configuration
+
+### Key Components
+
+- **Folder Creation System**: Creates standardized folder structure in parent directory:
+  - `step0-trash`
+  - `step1-convert` 
+  - `step2-process`
+  - `step2.1-remove_border`
+  - `step2.2-remove_barcode`
+  - `step2.5-cleanup`
+  - `step2.5-covers`
+  - `step3-completed`
+  - `step4-done`
+
+- **ComicVine API Integration**: Functions to fetch comic metadata:
+  - `fetch_comics(query, limit)` - Search for comics
+  - `fetch_volumes(query, limit)` - Search for volumes
+  - `fetch_comic_by_id(id)` - Get specific comic details
+  - `fetch_volume_by_id(id)` - Get specific volume details
+  - `search_comics(query, filter_params)` - Advanced search with filtering
 
 ## Development Workflow
 
 ### Coding Standards
-- Follow TypeScript best practices
-- Use functional components with hooks
-- Write clear, descriptive variable and function names
-- Maintain consistent code formatting (Prettier)
-- Follow component-based architecture principles
+
+- Python 3.x with type hints
+- Follow PEP 8 style guidelines
+- Comprehensive error handling
+- Clear function documentation with docstrings
 
 ### Testing Approach
-- Unit tests for components and functions
-- Integration tests for complex interactions
-- End-to-end tests for critical user flows
-- Test coverage should be maintained above 80%
 
-### Build and Deployment Process
-1. Code is automatically linted and tested on commit
-2. CI pipeline runs on GitHub Actions
-3. Production build is created with `npm run build`
-4. Deployed to hosting platform (configured in deployment scripts)
+The project includes example usage in the main function that demonstrates API functionality. For production use, developers should implement proper unit tests.
+
+### Build and Deployment
+
+This is a Python script-based tool that doesn't require compilation. Deployment involves:
+
+1. Installing dependencies via pip
+2. Setting environment variables
+3. Running the script as needed
 
 ### Contribution Guidelines
-- Create feature branches from `main`
-- Follow conventional commit messages
-- Ensure all tests pass before merging
-- Update documentation when making significant changes
+
+- Follow existing code style and patterns
+- Add comprehensive docstrings to new functions
+- Include error handling for API interactions
+- Test changes thoroughly before submitting
 
 ## Key Concepts
 
-### Domain-Specific Terminology
-- **Component**: Reusable UI element with specific functionality
-- **Hook**: Custom React function that lets you "hook into" React state and lifecycle features
-- **Feature**: A self-contained module that implements a specific business functionality
-- **Service**: Module responsible for data fetching and API interactions
+### Comic Processing Pipeline
 
-### Core Abstractions
-- **Context API**: For global state management
-- **Custom Hooks**: To encapsulate component logic
-- **Component Composition**: Building complex UIs from simple components
+The tool implements a multi-step processing pipeline:
 
-### Design Patterns Used
-- Component composition pattern
-- Custom hooks pattern for reusable logic
-- Context pattern for state management
-- Higher-order components (HOCs) where needed
+1. **step0-trash**: Initial trash management
+2. **step1-convert**: File conversion operations  
+3. **step2-process**: Main processing steps
+4. **step2.1-remove_border**: Border removal
+5. **step2.2-remove_barcode**: Barcode removal
+6. **step2.5-cleanup**: General cleanup
+7. **step2.5-covers**: Cover handling
+8. **step3-completed**: Completed processing
+9. **step4-done**: Final destination
+
+### ComicVine API Integration
+
+The integration provides access to:
+
+- Comic issue metadata (names, descriptions, publication dates)
+- Volume information (publisher details, start years)
+- Search capabilities with filtering options
+- Detailed item retrieval by ID
 
 ## Common Tasks
 
-### Adding a New Feature
-1. Create a new directory under `src/features/` with feature name
-2. Implement the feature component(s)
-3. Add necessary services or hooks
-4. Export from the feature module
-5. Import and use in parent components
+### Setting Up Environment
 
-### Creating a New Component
-1. Create component file in appropriate directory (`components/`, `features/`)
-2. Define TypeScript interfaces for props
-3. Implement component logic
-4. Add styling (CSS modules or Tailwind)
-5. Write tests for the component
+```bash
+# Create .env file with your API key
+echo "COMICVINE_API_KEY=your_api_key_here" > .env
+```
 
-### Making API Calls
-1. Create service function in `src/services/`
-2. Handle loading and error states appropriately
-3. Use custom hooks to manage data fetching
-4. Integrate with component state management
+### Running the Processor
+
+```python
+# Run folder creation (creates all required directories)
+import comic_processor
+comic_processor.create_folders()
+
+# Fetch and process comics
+comics = comic_processor.fetch_comics('spider-man', 10)
+for comic in comics:
+    print(comic['name'])
+```
+
+### Using ComicVine API Functions
+
+```python
+# Search for comics
+comics = comic_processor.fetch_comics('superman', 5)
+
+# Search for volumes  
+volumes = comic_processor.fetch_volumes('dc', 5)
+
+# Get specific item by ID
+comic = comic_processor.fetch_comic_by_id(12345)
+```
 
 ## Troubleshooting
 
-### Common Issues and Solutions
-- **Build fails**: Run `npm install` to ensure all dependencies are installed
-- **TypeScript errors**: Check for missing type definitions or incorrect typing
-- **Component not rendering**: Verify component imports and check console for errors
-- **Styling issues**: Ensure CSS modules are properly scoped or Tailwind classes are correct
+### API Key Issues
 
-### Debugging Tips
-- Use React Developer Tools to inspect component tree
-- Add `console.log` statements to trace execution flow
-- Check browser developer tools for JavaScript errors
-- Use VS Code debugging features with breakpoints
+**Problem**: "ComicVine API key not found"
+**Solution**: Set the `COMICVINE_API_KEY` environment variable or create a `.env` file with your key.
+
+### Network Errors
+
+**Problem**: API requests failing due to network issues
+**Solution**: Check internet connectivity and ensure the ComicVine API is accessible.
+
+### Permission Issues
+
+**Problem**: Cannot create folders in parent directory
+**Solution**: Ensure the script has write permissions to the parent directory.
+
+### Missing Dependencies
+
+**Problem**: ImportError when running the script
+**Solution**: Install dependencies with `pip install -r requirements.txt`
 
 ## References
 
-### Documentation
-- [React Documentation](https://reactjs.org/)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [Vite Documentation](https://vitejs.dev/guide/)
-
-### Important Resources
-- GitHub repository for source code
-- CI/CD pipeline configuration
-- Deployment documentation
-- API documentation (if applicable)
+- [ComicVine API Documentation](https://comicvine.gamespot.com/api/)
+- [Python Requests Library](https://requests.readthedocs.io/)
+- [Python Dotenv Documentation](https://github.com/theskumar/python-dotenv)
+- [PEP 8 Style Guide](https://pep8.org/)

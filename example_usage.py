@@ -1,12 +1,13 @@
 # Example usage of the comic-processor
 
 import os
+
 from comic_processor import (
-    fetch_comics,
-    fetch_volumes,
     fetch_comic_by_id,
+    fetch_comics,
     fetch_volume_by_id,
-    get_api_key_status
+    fetch_volumes,
+    get_api_key_status,
 )
 
 # Check API key status

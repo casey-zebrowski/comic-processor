@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
+
 import os
 import shutil
 import uuid
 import zipfile  # Added for .cbz (ZIP) files
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import py7zr  # Added for .cb7 (7zip) files
-import rarfile  # Added for .cbr (RAR) files
+import rarfile  # type: ignore[import-not-found, import-untyped]  # pyright: ignore[reportMissingModuleSource]
 import requests  # type: ignore[import-not-found, import-untyped]  # pyright: ignore[reportMissingModuleSource]
 from dotenv import load_dotenv
 from smbprotocol.connection import (  # type: ignore[import-not-found, import-untyped]  # pyright: ignore[reportMissingModuleSource]
@@ -193,7 +195,7 @@ def fetch_volumes(query: str, limit: int = 10) -> list[dict[str, Any]]:
         print(f'Error fetching volumes: {e}')
         raise
 
-def fetch_comic_by_id(id: int) -> Optional[dict[str, Any]]:
+def fetch_comic_by_id(id: int) -> dict[str, Any] | None:
     """Fetch a specific comic by ID"""
     if not API_KEY:
         raise ValueError('ComicVine API key is required. Please set COMICVINE_API_KEY environment variable.')
@@ -237,7 +239,7 @@ def fetch_volume_by_id(id: int) -> dict[str, Any] | None:
         print(f'Error fetching volume by ID: {e}')
         raise
 
-def search_comics(query: str, filter_params: Optional[dict[str, Any]] = None) -> list[dict[str, Any]]:
+def search_comics(query: str, filter_params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Search for comics with advanced filtering"""
     if not API_KEY:
         raise ValueError('ComicVine API key is required. Please set COMICVINE_API_KEY environment variable.')

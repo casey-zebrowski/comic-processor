@@ -1,9 +1,12 @@
 import os
 import shutil
 import uuid
+import zipfile  # Added for .cbz (ZIP) files
 from pathlib import Path
 from typing import Any, Optional
 
+import py7zr  # Added for .cb7 (7zip) files
+import rarfile  # Added for .cbr (RAR) files
 import requests  # type: ignore[import-not-found, import-untyped]  # pyright: ignore[reportMissingModuleSource]
 from dotenv import load_dotenv
 from smbprotocol.connection import (  # type: ignore[import-not-found, import-untyped]  # pyright: ignore[reportMissingModuleSource]
@@ -273,14 +276,62 @@ def get_api_key_status() -> dict[str, Any]:
         'key': API_KEY[:5] + '...' if API_KEY else None,
     }
 
+def extract_archive(comic_file: str, output_dir: str) -> None:
+    """Extract and flatten comic archive (.cbr, .cbz, .cb7)"""
+    try:
+        print(f'Extracting archive: {comic_file}')
+
+        # Create output directory if it doesn't exist
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Determine file extension and extract accordingly
+        file_extension = comic_file.lower().split('.')[-1]
+
+        if file_extension == 'cbz':
+            # Handle ZIP archive (.cbz)
+            with zipfile.ZipFile(comic_file, 'r') as zip_ref:
+                zip_ref.extractall(output_dir)
+                print(f'Successfully extracted ZIP archive: {comic_file}')
+        elif file_extension == 'cbr':
+            # Handle RAR archive (.cbr)
+            with rarfile.RarFile(comic_file, 'r') as rar_ref:
+                rar_ref.extractall(output_dir)
+                print(f'Successfully extracted RAR archive: {comic_file}')
+        elif file_extension == 'cb7':
+            # Handle 7zip archive (.cb7)
+            with py7zr.SevenZipFile(comic_file, mode='r') as sz_ref:
+                sz_ref.extractall(path=output_dir)
+                print(f'Successfully extracted 7zip archive: {comic_file}')
+        else:
+            raise ValueError(f'Unsupported archive format: {file_extension}')
+
+    except Exception as e:
+        print(f'Error extracting archive: {e}')
+        raise
+
 def process_comic(comic_file: str) -> None:
     """Process a comic and move it to the Komga library or notify Komga of a new comic"""
     try:
-        # Placeholder for comic processing logic
-        print(f'Processing comic: {comic_file}')
+        # Extract the archive if it's a comic archive
+        file_extension = comic_file.lower().split('.')[-1]
+        if file_extension in ['cbz', 'cbr', 'cb7']:
+            # Create a temporary directory for extraction
+            temp_dir = os.path.join(os.path.dirname(comic_file), 'extracted_' + os.path.basename(comic_file))
+            extract_archive(comic_file, temp_dir)
 
-        # Move the processed comic to the Komga library or notify Komga of a new comic
-        move_to_komga(comic_file)
+            # After extraction, we need to decide what to do with the extracted files
+            # For now, we'll just print the extracted files and move the original file
+            print(f'Extracted files: {os.listdir(temp_dir)}')
+
+            # Move the original archive file to Komga
+            move_to_komga(comic_file)
+
+            # Optionally, we could also move the extracted files or handle them differently
+            # For now, we'll just leave them in the temp directory
+        else:
+            # If it's not an archive, just process it as a regular file
+            print(f'Processing non-archive comic: {comic_file}')
+            move_to_komga(comic_file)
     except Exception as e:
         print(f'Error processing comic: {e}')
         raise

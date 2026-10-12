@@ -1,0 +1,6 @@
+Extracting archive: /Volumes/Storage/comics/step1-convert/4050-81729 0.cbr
+Error extracting RAR archive: Failed the read enough data: req=262144 got=51
+Attempting alternative extraction for RAR file: /Volumes/Storage/comics/step1-convert/4050-81729 0.cbr
+Alternative extraction failed: Failed the read enough data: req=262144 got=51
+Unrar command extraction failed: [Errno 2] No such file or directory: 'unrar'
+Error extracting archive: Failed to extract cbr archive: /Volumes/Storage/comics/step1-convert/4050-81729 0.cbr

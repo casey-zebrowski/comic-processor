@@ -8,13 +8,14 @@ def create_required_folders(base_dir):
     folders = [
         "step0-trash",
         "step1-convert",
+        "step1.1-convert_failed",
         "step2-process",
         "step2.1-process-remove_border",
         "step2.2-process-remove_barcode",
         "step2.3-manual_cleanup",
         "step2.4-process_covers",
         "step3-completed",
-        "step4-done"
+        "step4-done",
     ]
 
     for folder in folders:
@@ -23,22 +24,27 @@ def create_required_folders(base_dir):
             os.makedirs(folder_path)
             print(f"Created folder: {folder_path}")
 
-def process_comic_files(base_dir):
+
+def convert_comic_files(base_dir):
     convert_dir = os.path.join(base_dir, "step1-convert")
+    convert_failed_dir = os.path.join(base_dir, "step1.1-convert_failed")
     process_dir = os.path.join(base_dir, "step2-process")
+    trash_dir = os.path.join(base_dir, "step0-trash")
 
     # Iterate through the step1-convert folder
-    for item_name in os.listdir(convert_dir):
-        item_path = os.path.join(convert_dir, item_name)
+    for comic_name in os.listdir(convert_dir):
+        comic_path = os.path.join(convert_dir, comic_name)
 
-        if os.path.isdir(item_path):
-            # Process each folder in step1-convert
-            process_folder(item_path, process_dir)
-        elif os.path.isfile(item_path) and is_comic_file(item_path):
+        if os.path.isdir(comic_path):
+            # Convert each folder in step1-convert
+            # convert_comic_folder(item_path, process_dir)
+            continue
+        elif os.path.isfile(comic_path) and is_comic_file(comic_path):
             # Process individual comic files
-            process_file(item_path, process_dir)
+            convert_comic_file(comic_path, process_dir, convert_failed_dir, trash_dir)
 
-def process_folder(folder_path, process_dir):
+
+def convert_comic_folder(folder_path, process_dir):
     folder_name = os.path.basename(folder_path)
     destination_folder = os.path.join(process_dir, folder_name)
 
@@ -56,51 +62,51 @@ def process_folder(folder_path, process_dir):
     for item_name in os.listdir(destination_folder):
         item_path = os.path.join(destination_folder, item_name)
         if is_comic_file(item_path):
-            extract_and_rename(item_path, destination_folder, folder_name)
+            # extract_and_rename(item_path, destination_folder, folder_name)
+            continue
 
-def process_file(file_path, process_dir):
-    file_name = os.path.basename(file_path)
-    destination_folder = os.path.join(process_dir, file_name)
+
+def convert_comic_file(comic_path, process_dir, convert_failed_dir, trash_dir):
+    file_name = os.path.basename(comic_path)
+    folder_name = os.path.splitext(file_name)[0]
+    destination_folder = os.path.join(process_dir, folder_name)
 
     # Create destination folder
-    if not os.path.exists(destination_folder):
-        os.makedirs(destination_folder)
+    os.makedirs(destination_folder, exist_ok=True)
 
-    # Move the file to the destination folder
-    shutil.move(file_path, os.path.join(destination_folder, file_name))
+    try:
+        extract_archive(comic_path, destination_folder)
+    except (OSError, ValueError):
+        shutil.move(comic_path, os.path.join(convert_failed_dir, file_name))
+        return
 
-    # Extract and rename the comic file
-    extract_and_rename(os.path.join(destination_folder, file_name), destination_folder, file_name)
+    # Flatten files from any extracted subdirectories into the destination folder.
+    for root, dirs, files in os.walk(destination_folder, topdown=False):
+        for extracted_name in files:
+            source_path = os.path.join(root, extracted_name)
+            if root != destination_folder:
+                shutil.move(
+                    source_path, os.path.join(destination_folder, extracted_name)
+                )
+        if root != destination_folder:
+            os.rmdir(root)
+
+    shutil.move(comic_path, os.path.join(trash_dir, file_name))
+
 
 def is_comic_file(file_path):
-    return file_path.endswith(('.cbr', '.cbz', '.cb7', '.zip', '.rar', '.7z'))
+    return file_path.endswith((".cbr", ".cbz", ".cb7", ".zip", ".rar", ".7z"))
 
-def extract_and_rename(file_path, destination_folder, folder_name):
-    # Extract the archive
-    extract_archive(file_path, destination_folder)
-
-    # Get the extracted files
-    extracted_files = os.listdir(destination_folder)
-
-    # Rename the files with the folder name and a number
-    for i, file_name in enumerate(extracted_files):
-        old_file_path = os.path.join(destination_folder, file_name)
-        new_file_name = f"{folder_name} {i+1}"
-        new_file_path = os.path.join(destination_folder, new_file_name)
-
-        # Only rename if it's not a directory
-        if os.path.isfile(old_file_path):
-            os.rename(old_file_path, new_file_path)
-            print(f"Renamed: {old_file_path} -> {new_file_path}")
 
 def main():
-    base_dir = "/Volumes/Storage/comics"
+    base_dir = os.environ.get("PARENT_DIR", "/Volumes/Storage/comics")
 
     # Create required folders
     create_required_folders(base_dir)
 
-    # Process comic files
-    process_comic_files(base_dir)
+    # Convert comic files
+    convert_comic_files(base_dir)
+
 
 if __name__ == "__main__":
     main()

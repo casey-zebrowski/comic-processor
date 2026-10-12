@@ -291,21 +291,57 @@ def extract_archive(comic_file: str, output_dir: str) -> None:
 
         if file_extension == 'cbz':
             # Handle ZIP archive (.cbz)
-            with zipfile.ZipFile(comic_file, 'r') as zip_ref:
-                zip_ref.extractall(output_dir)
-                print(f'Successfully extracted ZIP archive: {comic_file}')
+            try:
+                with zipfile.ZipFile(comic_file, 'r') as zip_ref:
+                    zip_ref.extractall(output_dir)
+                    print(f'Successfully extracted ZIP archive: {comic_file}')
+                return
+            except (zipfile.BadZipFile, zipfile.LargeZipFile) as e:
+                print(f'Error extracting ZIP archive: {e}')
         elif file_extension == 'cbr':
             # Handle RAR archive (.cbr)
-            with rarfile.RarFile(comic_file, 'r') as rar_ref:
-                rar_ref.extractall(output_dir)
-                print(f'Successfully extracted RAR archive: {comic_file}')
+            try:
+                with rarfile.RarFile(comic_file, 'r') as rar_ref:
+                    rar_ref.extractall(output_dir)
+                    print(f'Successfully extracted RAR archive: {comic_file}')
+                return
+            except (rarfile.RarCannotExec, rarfile.Error, rarfile.BadRarFile) as e:
+                print(f'Error extracting RAR archive: {e}')
+                # Check if the file is corrupted
+                try:
+                    # Try to get basic file info to check if it's a valid RAR file
+                    rar_ref = rarfile.RarFile(comic_file, 'r')
+                    file_list = rar_ref.infolist()
+                    if not file_list:
+                        print(f'Warning: RAR file appears to be empty or corrupted: {comic_file}')
+                        raise ValueError('Empty or corrupted RAR file')
+                except (rarfile.RarCannotExec, rarfile.Error, rarfile.BadRarFile, OSError) as check_e:
+                    print(f'File validation failed: {check_e}')
+                    raise ValueError(f'Corrupted RAR file: {comic_file}') from check_e
         elif file_extension == 'cb7':
             # Handle 7zip archive (.cb7)
-            with py7zr.SevenZipFile(comic_file, mode='r') as sz_ref:
-                sz_ref.extractall(path=output_dir)
-                print(f'Successfully extracted 7zip archive: {comic_file}')
+            try:
+                with py7zr.SevenZipFile(comic_file, mode='r') as sz_ref:
+                    sz_ref.extractall(path=output_dir)
+                    print(f'Successfully extracted 7zip archive: {comic_file}')
+                return
+            except py7zr.Bad7zFile as e:
+                print(f'Error extracting 7zip archive: {e}')
+                # Try alternative extraction method
+                try:
+                    print(f'Attempting alternative extraction for 7zip file: {comic_file}')
+                    # Use subprocess to call 7z command if available
+                    import subprocess
+                    subprocess.run(['7z', 'x', comic_file, f'-o{output_dir}'],
+                                   check=True, capture_output=True)
+                    print(f'Successfully extracted 7zip archive using alternative method: {comic_file}')
+                except (subprocess.CalledProcessError, FileNotFoundError) as alt_e:
+                    print(f'Alternative extraction failed: {alt_e}')
         else:
             raise ValueError(f'Unsupported archive format: {file_extension}')
+
+        # If we get here, extraction failed
+        raise ValueError(f'Failed to extract {file_extension} archive: {comic_file}')
 
     except Exception as e:
         print(f'Error extracting archive: {e}')

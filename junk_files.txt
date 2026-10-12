@@ -1,0 +1,5 @@
+*.db
+*.sfv
+zthe-hand*
+zwater*
+xsou5b*

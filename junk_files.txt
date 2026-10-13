@@ -1,5 +1,7 @@
 *.db
 *.sfv
+*.xml
+xsou5b*
+xtag01*
 zthe-hand*
 zwater*
-xsou5b*

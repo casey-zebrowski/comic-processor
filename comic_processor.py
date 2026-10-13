@@ -251,7 +251,7 @@ def fetch_volume_by_id(id: int) -> dict[str, Any] | None:
 
     try:
         response = requests.get(
-            f"{COMICVINE_API_BASE}/volume/4000-{id}/",
+            f"{COMICVINE_API_BASE}/volume/4050-{id}/",
             params={
                 "api_key": API_KEY,
                 "format": "json",
@@ -264,6 +264,36 @@ def fetch_volume_by_id(id: int) -> dict[str, Any] | None:
         return data.get("results")
     except requests.RequestException as e:
         print(f"Error fetching volume by ID: {e}")
+        raise
+
+
+def fetch_issues_by_volume_and_number(
+    volume_id: int, issue_number: str
+) -> list[dict[str, Any]]:
+    """Fetch issue records matching a ComicVine volume and issue number."""
+    if not API_KEY:
+        raise ValueError(
+            "ComicVine API key is required. Please set COMICVINE_API_KEY environment variable."
+        )
+
+    try:
+        response = requests.get(
+            f"{COMICVINE_API_BASE}/issues/",
+            params={
+                "api_key": API_KEY,
+                "format": "json",
+                "filter": f"volume:{volume_id},issue_number:{issue_number}",
+                "field_list": "id,issue_number,volume",
+                "limit": 100,
+            },
+            headers=COMICVINE_HEADERS,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data.get("results", [])
+    except requests.RequestException as e:
+        print(f"Error fetching issue {issue_number} for volume {volume_id}: {e}")
         raise
 
 

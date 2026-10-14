@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import shutil
 import uuid
@@ -28,6 +29,16 @@ from unrar.cffi import rarfile as unrar_rarfile  # type: ignore
 PROJECT_DIR = Path(__file__).resolve().parent
 load_dotenv(PROJECT_DIR / ".env")
 
+_configured_log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+_log_level = getattr(logging, _configured_log_level, logging.INFO)
+if not isinstance(_log_level, int):
+    _log_level = logging.INFO
+logging.basicConfig(
+    level=_log_level,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 # Read configuration
 api_key = os.getenv("API_KEY")
 
@@ -48,13 +59,13 @@ KOMGA_SMB_USERNAME = os.getenv("KOMGA_SMB_USERNAME")
 KOMGA_SMB_PASSWORD = os.getenv("KOMGA_SMB_PASSWORD")
 
 if not API_KEY:
-    print(
-        "Warning: ComicVine API key not found. Please set COMICVINE_API_KEY environment variable."
+    logger.warning(
+        "ComicVine API key not found. Set COMICVINE_API_KEY to enable ComicVine requests."
     )
 
 if not KOMGA_LIBRARY_PATH and not KOMGA_URL and not KOMGA_SMB_PATH:
-    print(
-        "Warning: Neither Komga library path, Komga URL, nor Komga SMB path is set. Please set one of these environment variables."
+    logger.warning(
+        "No Komga destination is configured; set a Komga path or URL to use Komga integration."
     )
 
 
@@ -63,23 +74,23 @@ def move_to_komga(file_path: str) -> None:
     if KOMGA_LIBRARY_PATH:
         try:
             shutil.move(file_path, KOMGA_LIBRARY_PATH)
-            print(f"Moved {file_path} to Komga library.")
+            logger.info(f"Moved {file_path} to Komga library.")
         except Exception as e:
-            print(f"Error moving file to Komga library: {e}")
+            logger.error(f"Error moving file to Komga library: {e}")
             raise
     elif KOMGA_SMB_PATH:
         try:
             move_to_komga_smb(file_path, KOMGA_SMB_PATH)
-            print(f"Moved {file_path} to Komga SMB share.")
+            logger.info(f"Moved {file_path} to Komga SMB share.")
         except Exception as e:
-            print(f"Error moving file to Komga SMB share: {e}")
+            logger.error(f"Error moving file to Komga SMB share: {e}")
             raise
     elif KOMGA_URL and KOMGA_API_KEY:
         try:
             notify_komga_of_new_comic(file_path)
-            print(f"Notified Komga of new comic: {file_path}")
+            logger.info(f"Notified Komga of new comic: {file_path}")
         except Exception as e:
-            print(f"Error notifying Komga of new comic: {e}")
+            logger.error(f"Error notifying Komga of new comic: {e}")
             raise
     else:
         raise ValueError(
@@ -121,9 +132,9 @@ def move_to_komga_smb(file_path: str, smb_path: str) -> None:
         with open.file as smb_file, open(file_path, "rb") as local_file:
             shutil.copyfileobj(local_file, smb_file)
 
-        print(f"Successfully moved {file_path} to {smb_path}")
+        logger.info(f"Successfully moved {file_path} to {smb_path}")
     except Exception as e:
-        print(f"Error moving file to Komga SMB share: {e}")
+        logger.error(f"Error moving file to Komga SMB share: {e}")
         raise
     finally:
         # Clean up resources
@@ -154,9 +165,9 @@ def notify_komga_of_new_comic(file_path: str) -> None:
             },
         )
         response.raise_for_status()
-        print(f"Successfully notified Komga of new comic: {file_path}")
+        logger.info(f"Successfully notified Komga of new comic: {file_path}")
     except requests.RequestException as e:
-        print(f"Error notifying Komga of new comic: {e}")
+        logger.error(f"Error notifying Komga of new comic: {e}")
         raise
 
 
@@ -185,7 +196,7 @@ def fetch_comics(query: str, limit: int = 10) -> list[dict[str, Any]]:
         data = response.json()
         return data.get("results", [])
     except requests.RequestException as e:
-        print(f"Error fetching comics: {e}")
+        logger.error(f"Error fetching comics: {e}")
         raise
 
 
@@ -213,7 +224,7 @@ def fetch_volumes(query: str, limit: int = 10) -> list[dict[str, Any]]:
         data = response.json()
         return data.get("results", [])
     except requests.RequestException as e:
-        print(f"Error fetching volumes: {e}")
+        logger.error(f"Error fetching volumes: {e}")
         raise
 
 
@@ -238,7 +249,7 @@ def fetch_comic_by_id(id: int) -> dict[str, Any] | None:
         data = response.json()
         return data.get("results")
     except requests.RequestException as e:
-        print(f"Error fetching comic by ID: {e}")
+        logger.error(f"Error fetching comic by ID: {e}")
         raise
 
 
@@ -263,7 +274,7 @@ def fetch_volume_by_id(id: int) -> dict[str, Any] | None:
         data = response.json()
         return data.get("results")
     except requests.RequestException as e:
-        print(f"Error fetching volume by ID: {e}")
+        logger.error(f"Error fetching volume by ID: {e}")
         raise
 
 
@@ -293,7 +304,7 @@ def fetch_issues_by_volume_and_number(
         data = response.json()
         return data.get("results", [])
     except requests.RequestException as e:
-        print(f"Error fetching issue {issue_number} for volume {volume_id}: {e}")
+        logger.error(f"Error fetching issue {issue_number} for volume {volume_id}: {e}")
         raise
 
 
@@ -330,7 +341,7 @@ def search_comics(
         data = response.json()
         return data.get("results", [])
     except requests.RequestException as e:
-        print(f"Error searching comics: {e}")
+        logger.error(f"Error searching comics: {e}")
         raise
 
 
@@ -345,7 +356,7 @@ def get_api_key_status() -> dict[str, Any]:
 def extract_archive(comic_file: str, output_dir: str) -> None:
     """Extract and flatten comic archive (.cbr, .cbz, .cb7)"""
     try:
-        print(f"Extracting archive: {comic_file}")
+        logger.info(f"Extracting archive: {comic_file}")
 
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)
@@ -358,10 +369,10 @@ def extract_archive(comic_file: str, output_dir: str) -> None:
             try:
                 with zipfile.ZipFile(comic_file, "r") as zip_ref:
                     zip_ref.extractall(output_dir)
-                    print(f"Successfully extracted ZIP archive: {comic_file}")
+                    logger.info(f"Successfully extracted ZIP archive: {comic_file}")
                 return
             except (zipfile.BadZipFile, zipfile.LargeZipFile) as e:
-                print(f"Error extracting ZIP archive: {e}")
+                logger.error(f"Error extracting ZIP archive: {e}")
         elif file_extension == "cbr":
             # Use the pip-installed UnRAR binding rather than relying on an
             # OS-specific executable such as unrar, unar, or bsdtar.
@@ -386,20 +397,20 @@ def extract_archive(comic_file: str, output_dir: str) -> None:
                 os.makedirs(os.path.dirname(destination), exist_ok=True)
                 with rar_ref.open(member) as source, open(destination, "wb") as target:
                     shutil.copyfileobj(source, target)
-            print(f"Successfully extracted RAR archive: {comic_file}")
+            logger.info(f"Successfully extracted RAR archive: {comic_file}")
             return
         elif file_extension == "cb7":
             # Handle 7zip archive (.cb7)
             try:
                 with py7zr.SevenZipFile(comic_file, mode="r") as sz_ref:
                     sz_ref.extractall(path=output_dir)
-                    print(f"Successfully extracted 7zip archive: {comic_file}")
+                    logger.info(f"Successfully extracted 7zip archive: {comic_file}")
                 return
             except py7zr.Bad7zFile as e:
-                print(f"Error extracting 7zip archive: {e}")
+                logger.error(f"Error extracting 7zip archive: {e}")
                 # Try alternative extraction method
                 try:
-                    print(
+                    logger.info(
                         f"Attempting alternative extraction for 7zip file: {comic_file}"
                     )
                     # Use subprocess to call 7z command if available
@@ -410,11 +421,11 @@ def extract_archive(comic_file: str, output_dir: str) -> None:
                         check=True,
                         capture_output=True,
                     )
-                    print(
+                    logger.info(
                         f"Successfully extracted 7zip archive using alternative method: {comic_file}"
                     )
                 except (subprocess.CalledProcessError, FileNotFoundError) as alt_e:
-                    print(f"Alternative extraction failed: {alt_e}")
+                    logger.warning(f"Alternative extraction failed: {alt_e}")
         else:
             raise ValueError(f"Unsupported archive format: {file_extension}")
 
@@ -422,7 +433,7 @@ def extract_archive(comic_file: str, output_dir: str) -> None:
         raise ValueError(f"Failed to extract {file_extension} archive: {comic_file}")
 
     except Exception as e:
-        print(f"Error extracting archive: {e}")
+        logger.error(f"Error extracting archive: {e}")
         raise
 
 
@@ -440,7 +451,7 @@ def process_comic(comic_file: str) -> None:
 
             # After extraction, we need to decide what to do with the extracted files
             # For now, we'll just print the extracted files and move the original file
-            print(f"Extracted files: {os.listdir(temp_dir)}")
+            logger.info(f"Extracted files: {os.listdir(temp_dir)}")
 
             # Move the original archive file to Komga
             move_to_komga(comic_file)
@@ -449,10 +460,10 @@ def process_comic(comic_file: str) -> None:
             # For now, we'll just leave them in the temp directory
         else:
             # If it's not an archive, just process it as a regular file
-            print(f"Processing non-archive comic: {comic_file}")
+            logger.info(f"Processing non-archive comic: {comic_file}")
             move_to_komga(comic_file)
     except Exception as e:
-        print(f"Error processing comic: {e}")
+        logger.error(f"Error processing comic: {e}")
         raise
 
 
@@ -460,17 +471,17 @@ def process_comic(comic_file: str) -> None:
 if __name__ == "__main__":
     # Check if API key is set
     status = get_api_key_status()
-    print(f"API Key Status: {'Valid' if status['is_valid'] else 'Invalid'}")
+    logger.info(f"API Key Status: {'Valid' if status['is_valid'] else 'Invalid'}")
 
     if status["is_valid"]:
         try:
             # Example search for comics
             comics = fetch_comics("spider-man", 5)
-            print(f'Found {len(comics)} comics matching "spider-man"')
+            logger.info(f'Found {len(comics)} comics matching "spider-man"')
 
             # Example search for volumes
             volumes = fetch_volumes("marvel", 5)
-            print(f'Found {len(volumes)} volumes matching "marvel"')
+            logger.info(f'Found {len(volumes)} volumes matching "marvel"')
 
             # Process a comic (example)
             # Uncomment and modify the line below to process a real comic file
@@ -485,8 +496,8 @@ if __name__ == "__main__":
             # os.environ['KOMGA_SMB_PASSWORD'] = 'your_password'
 
         except (requests.RequestException, ValueError) as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
     else:
-        print(
+        logger.info(
             "Please set your ComicVine API key in the environment variable COMICVINE_API_KEY"
         )

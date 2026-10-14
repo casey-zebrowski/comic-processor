@@ -1,5 +1,6 @@
 import fnmatch
 import html
+import logging
 import os
 import re
 import shutil
@@ -8,7 +9,10 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+import cv2
+import numpy as np
+import zxingcpp
+from PIL import Image, ImageDraw, UnidentifiedImageError
 
 from comic_processor import (
     extract_archive,
@@ -17,6 +21,8 @@ from comic_processor import (
     fetch_volume_by_id,
     fetch_volumes,
 )
+
+logger = logging.getLogger(__name__)
 
 JUNK_FILES_PATH = Path(__file__).with_name("junk_files.txt")
 
@@ -52,7 +58,7 @@ def create_required_folders(base_dir):
         folder_path = os.path.join(base_dir, folder)
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-            print(f"Created folder: {folder_path}")
+            logger.info(f"Created folder: {folder_path}")
 
 
 def get_unique_destination_folder(parent_dir, folder_name):
@@ -129,7 +135,7 @@ def move_junk_files(folder_path, junk_root):
                     )
                     duplicate_number += 1
             shutil.move(file_path, destination_path)
-            print(f"Moved junk file: {file_path} -> {destination_path}")
+            logger.debug(f"Moved junk file: {file_path} -> {destination_path}")
 
 
 def unique_file_path(directory, file_name):
@@ -184,11 +190,11 @@ def convert_images_to_jpg(folder_path, convert_failed_dir):
 
             if not same_path:
                 os.remove(source_path)
-            print(f"Converted image to JPEG: {target_path}")
+            logger.debug(f"Converted image to JPEG: {target_path}")
         except (UnidentifiedImageError, OSError, ValueError):
             failed_path = unique_file_path(convert_failed_dir, file_name)
             shutil.move(source_path, failed_path)
-            print(f"Moved non-image file to {failed_path}")
+            logger.debug(f"Moved non-image file to {failed_path}")
 
 
 def natural_sort_key(file_name):
@@ -232,6 +238,181 @@ def rename_completed_images(folder_path):
         os.replace(temporary_path, target_path)
 
 
+def find_barcode_rectangle(image):
+    """Find a barcode panel or a solid dark placeholder in the lower half."""
+    width, height = image.size
+    lower_half_top = height // 2
+    lower_half = image.crop((0, lower_half_top, width, height)).convert("RGB")
+    crop_area = width * (height - lower_half_top)
+    barcodes = zxingcpp.read_barcodes(lower_half)
+    barcode_bounds = []
+    for barcode in barcodes:
+        points = (
+            barcode.position.top_left,
+            barcode.position.top_right,
+            barcode.position.bottom_left,
+            barcode.position.bottom_right,
+        )
+        left = max(0, min(point.x for point in points))
+        top = max(0, min(point.y for point in points))
+        right = min(width - 1, max(point.x for point in points))
+        bottom = min(height - lower_half_top - 1, max(point.y for point in points))
+        area = max(1, (right - left) * (bottom - top))
+        barcode_bounds.append((left, top, right, bottom, area))
+
+    # Find four-sided regions around decoded bars, and also look for the solid
+    # dark rectangles sometimes used to obscure a barcode entirely.
+    gray = cv2.cvtColor(np.asarray(lower_half), cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    close_width = max(3, width // 250)
+    close_height = max(3, height // 250)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (close_width, close_height))
+    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Include any earlier green fill as a seed so rerunning the workflow can
+    # expand a previous tight barcode hit to its surrounding printed panel.
+    green_mask = cv2.inRange(
+        np.asarray(lower_half),
+        np.array((0, 180, 0), dtype=np.uint8),
+        np.array((80, 255, 80), dtype=np.uint8),
+    )
+    green_contours, _ = cv2.findContours(
+        green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    seed_bounds = list(barcode_bounds)
+    for contour in green_contours:
+        x, y, box_width, box_height = cv2.boundingRect(contour)
+        box_area = box_width * box_height
+        if box_area >= crop_area * 0.001:
+            seed_bounds.append((x, y, x + box_width - 1, y + box_height - 1, box_area))
+
+    panel_candidates = []
+    solid_box_candidates = []
+    for contour in contours:
+        perimeter = cv2.arcLength(contour, True)
+        if perimeter <= 0:
+            continue
+        polygon = cv2.approxPolyDP(contour, 0.02 * perimeter, True)
+        if len(polygon) != 4 or not cv2.isContourConvex(polygon):
+            continue
+        x, y, box_width, box_height = cv2.boundingRect(polygon)
+        right = x + box_width - 1
+        bottom = y + box_height - 1
+        box_area = box_width * box_height
+        if (
+            box_width < max(40, int(width * 0.035))
+            or box_height < max(30, int(height * 0.025))
+            or box_area < crop_area * 0.003
+            or box_area > crop_area * 0.25
+            or not 0.35 <= box_width / box_height <= 6
+            or cv2.contourArea(polygon) / box_area < 0.8
+        ):
+            continue
+
+        for barcode_left, barcode_top, barcode_right, barcode_bottom, barcode_area in seed_bounds:
+            if (
+                x <= barcode_left
+                and y <= barcode_top
+                and right >= barcode_right
+                and bottom >= barcode_bottom
+                and 1.05 <= box_area / barcode_area <= 35
+            ):
+                panel_candidates.append(
+                    (box_area, (x, y, right, bottom + lower_half_top))
+                )
+
+        inset = max(2, min(box_width, box_height) // 20)
+        inside = gray[y + inset : bottom - inset + 1, x + inset : right - inset + 1]
+        if inside.size:
+            average_brightness = float(np.mean(inside))
+            brightness_spread = float(np.std(inside))
+            if average_brightness < 105 and brightness_spread < 22:
+                solid_box_candidates.append(
+                    (box_area, (x, y, right, bottom + lower_half_top))
+                )
+
+    if panel_candidates:
+        return min(panel_candidates, key=lambda candidate: candidate[0])[1]
+
+    if solid_box_candidates:
+        return min(solid_box_candidates, key=lambda candidate: candidate[0])[1]
+
+    if not barcode_bounds:
+        return None
+
+    # When there is no clear panel border, leave enough margin to cover the
+    # barcode's label area as well as the bars themselves.
+    barcode_left, barcode_top, barcode_right, barcode_bottom, _ = max(
+        barcode_bounds, key=lambda bounds: bounds[4]
+    )
+    margin_x = max(12, int((barcode_right - barcode_left) * 0.35))
+    margin_y = max(12, int((barcode_bottom - barcode_top) * 0.25))
+
+    return (
+        max(0, barcode_left - margin_x),
+        max(0, barcode_top + lower_half_top - margin_y),
+        min(width - 1, barcode_right + margin_x),
+        min(height - 1, barcode_bottom + lower_half_top + margin_y),
+    )
+
+
+def process_barcode_removal(base_dir):
+    """Cover the first lower-half barcode found in each issue folder."""
+    stage_dir = os.path.join(base_dir, PROCESS_REMOVE_BARCODE_DIR_NAME)
+    image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff")
+    folders = [
+        os.path.join(stage_dir, name)
+        for name in sorted(os.listdir(stage_dir))
+        if os.path.isdir(os.path.join(stage_dir, name))
+    ]
+    for folder_path in folders:
+        image_paths = [
+            os.path.join(folder_path, name)
+            for name in os.listdir(folder_path)
+            if os.path.isfile(os.path.join(folder_path, name))
+            and name.lower().endswith(image_extensions)
+        ]
+        image_paths.sort(key=lambda path: natural_sort_key(os.path.basename(path)))
+        if not image_paths:
+            logger.warning(f"No images found in barcode-removal folder: {folder_path}")
+            continue
+
+        image_path = image_paths[0]
+        try:
+            with Image.open(image_path) as source_image:
+                image = source_image.convert("RGB")
+                rectangle = find_barcode_rectangle(image)
+                if rectangle is None:
+                    logger.info(f"No lower-half barcode found in {image_path}")
+                    continue
+                image_draw = ImageDraw.Draw(image)
+                image_draw.rectangle(rectangle, fill="#00FF00")
+                image_format = source_image.format or "JPEG"
+                save_options = (
+                    {"quality": 100, "subsampling": 0}
+                    if image_format.upper() in {"JPG", "JPEG"}
+                    else {}
+                )
+                backup_path = os.path.join(
+                    os.path.dirname(image_path),
+                    f"{Path(image_path).stem}_o{Path(image_path).suffix}",
+                )
+                if not os.path.exists(backup_path):
+                    shutil.copy2(image_path, backup_path)
+                    logger.info(f"Saved original image: {backup_path}")
+                else:
+                    logger.debug(f"Original image backup already exists: {backup_path}")
+                image.save(image_path, format=image_format, **save_options)
+                logger.info(f"Covered barcode in {image_path} at {rectangle}")
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not process barcode in {image_path}: {error}")
+
+
+def barcode_processing_skipped():
+    return os.getenv("SKIP_BARCODE_PROCESSING", "false").strip().casefold() == "true"
+
+
 def comic_vine_enabled():
     return os.getenv("ENABLE_COMIC_VINE", "false").strip().casefold() == "true"
 
@@ -242,11 +423,11 @@ def lookup_volume_and_issue(folder_name):
     A folder name without an explicit issue number represents issue 1.
     """
     comicvine_id_match = re.fullmatch(
-        r"4050-(\d+)\s+(\d+[A-Za-z]*)", folder_name, flags=re.IGNORECASE
+        r"4050-(\d+)(?:\s+(\d+[A-Za-z]*))?", folder_name, flags=re.IGNORECASE
     )
     if comicvine_id_match:
         volume_id = int(comicvine_id_match.group(1))
-        issue_number = comicvine_id_match.group(2)
+        issue_number = comicvine_id_match.group(2) or "1"
         volume = fetch_volume_by_id(volume_id)
         if not volume:
             raise ValueError(f"ComicVine volume {volume_id} was not found")
@@ -354,13 +535,13 @@ def archive_completed_issue(folder_path, done_dir, trash_dir):
     finally:
         if os.path.exists(temporary_archive):
             os.remove(temporary_archive)
-    print(f"Created CBZ: {archive_path}")
+    logger.info(f"Created CBZ: {archive_path}")
 
     trash_destination = get_unique_destination_folder(
         trash_dir, os.path.basename(folder_path)
     )
     shutil.move(folder_path, trash_destination)
-    print(f"Moved archived source folder to trash: {trash_destination}")
+    logger.info(f"Moved archived source folder to trash: {trash_destination}")
 
 
 def build_comic_info_xml(volume, issue, page_count):
@@ -460,7 +641,7 @@ def process_completed_folders(base_dir):
         folder_path = os.path.join(completed_dir, folder_name)
         if not os.path.isdir(folder_path):
             continue
-        print(f"Processing completed comic folder: {folder_name}")
+        logger.info(f"Processing completed comic folder: {folder_name}")
         move_junk_files(folder_path, junk_root)
         convert_images_to_jpg(folder_path, convert_failed_dir)
         rename_completed_images(folder_path)
@@ -470,7 +651,7 @@ def process_completed_folders(base_dir):
                     folder_path, done_dir, os.path.join(base_dir, TRASH_DIR_NAME)
                 )
             except Exception as error:
-                print(f"ComicVine processing failed for {folder_name}: {error}")
+                logger.error(f"ComicVine processing failed for {folder_name}: {error}")
 
 
 def convert_comic_files(base_dir):
@@ -487,7 +668,7 @@ def convert_comic_files(base_dir):
             try:
                 convert_comic_folder(folder_path, convert_dir, trash_dir)
             except (OSError, ValueError) as error:
-                print(f"Failed to convert folder {entry_name}: {error}")
+                logger.error(f"Failed to convert folder {entry_name}: {error}")
 
     comic_paths = [
         os.path.join(convert_dir, name)
@@ -496,7 +677,7 @@ def convert_comic_files(base_dir):
         and is_comic_file(os.path.join(convert_dir, name))
     ]
     status = {"total": len(comic_paths), "processed": 0, "failed": 0}
-    print(f"Found {status['total']} comic(s) to convert.")
+    logger.info(f"Found {status['total']} comic(s) to convert.")
 
     for index, comic_path in enumerate(comic_paths, start=1):
         try:
@@ -508,13 +689,13 @@ def convert_comic_files(base_dir):
         except (OSError, ValueError) as error:
             status["failed"] += 1
             result = f"failed: {error}"
-        print(
+        logger.info(
             f"[{index}/{status['total']}] {os.path.basename(comic_path)}: {result} "
             f"(processed {status['processed']}, failed {status['failed']}, "
             f"remaining {status['total'] - index})",
         )
 
-    print(
+    logger.info(
         f"Conversion complete: {status['total']} total, "
         f"{status['processed']} processed, {status['failed']} failed."
     )
@@ -552,7 +733,7 @@ def convert_comic_folder(folder_path, convert_dir, trash_dir):
 
     trash_destination = get_unique_destination_folder(trash_dir, folder_name)
     shutil.move(folder_path, trash_destination)
-    print(
+    logger.info(
         f"Copied {len(comic_files)} comic file(s) from {folder_name} to {convert_dir}; "
         f"moved source folder to {trash_destination}."
     )
@@ -570,9 +751,9 @@ def convert_comic_file(
 
     try:
         extract_archive(comic_path, destination_folder)
-        print(f"Successfully processed: {file_name}")
+        logger.info(f"Successfully processed: {file_name}")
     except Exception as e:
-        print(f"Failed to process: {file_name} - Error: {e}")
+        logger.error(f"Failed to process: {file_name} - Error: {e}")
         shutil.move(comic_path, os.path.join(convert_failed_dir, file_name))
         raise
 
@@ -621,15 +802,19 @@ def main():
                 )
 
         if total_files == 0:
-            print(
+            logger.info(
                 f"No comic files found in '{CONVERT_DIR_NAME}' folder. Nothing to process."
             )
         else:
-            print(f"Starting job processing for {total_files} comic files...")
+            logger.info(f"Starting job processing for {total_files} comic files...")
             convert_comic_files(base_dir)
 
+        if barcode_processing_skipped():
+            logger.info("Skipping barcode processing because SKIP_BARCODE_PROCESSING=true")
+        else:
+            process_barcode_removal(base_dir)
         process_completed_folders(base_dir)
-        print("Job processing completed!")
+        logger.info("Job processing completed!")
     finally:
         normalize_junk_file()
 

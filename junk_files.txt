@@ -1,7 +1,11 @@
 *.db
 *.sfv
 *.xml
+x-future scan*
 xsou5b*
 xtag01*
+zempire*
 zthe-hand*
 zwater*
+zztag*
+zzz *

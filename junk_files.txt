@@ -1,10 +1,13 @@
 *.db
 *.sfv
 *.xml
+sootwgsh*
 x-future scan*
 xbluntmanx*
 xsou5b*
 xtag01*
+xx-meganubis-xx*
+zdream*
 zempire*
 zsou-nerd*
 zthe-hand*

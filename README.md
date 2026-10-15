@@ -26,7 +26,7 @@ SKIP_BARCODE_PROCESSING=false
 LOG_LEVEL=INFO
 ```
 
-`PARENT_DIR` defaults to `/Volumes/Storage/comics`. ComicVine integration is disabled unless `ENABLE_COMIC_VINE` is exactly `true` (case-insensitive). Set `SKIP_BARCODE_PROCESSING=true` to skip barcode detection and image modification; it defaults to `false`. `LOG_LEVEL` controls console logging and accepts `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`; it defaults to `INFO`. `comic_processor.py` loads `.env` from the project directory.
+`PARENT_DIR` defaults to `/Volumes/Storage/comics`. ComicVine integration is disabled unless `ENABLE_COMIC_VINE` is exactly `true` (case-insensitive). Set `SKIP_BARCODE_PROCESSING=true` to skip barcode detection and image modification; it defaults to `false`. `LOG_LEVEL` controls console logging and accepts `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`; it defaults to `INFO`. With `LOG_LEVEL=DEBUG`, each ComicVine API response is saved as a separate JSON file in the volume's `step4_done` destination folder. If no volume destination can be resolved, dumps go in `step4_done/_comicvine_debug`. API keys are omitted. `comic_processor.py` loads `.env` from the project directory.
 
 ## Run the workflow
 
@@ -69,10 +69,11 @@ Put one filename pattern per line in `junk_files.txt`. Patterns use shell-style 
 
 For each folder under `step3_completed`, the job applies junk-file patterns, converts images to JPEG, and renumbers pages in natural filename order. Portrait pages receive names such as `001.jpg`; landscape spreads receive a page range such as `002-003.jpg` and advance the page counter by two.
 
-When `ENABLE_COMIC_VINE=true`, each completed folder is matched to ComicVine. Folder names may use the ComicVine ID form `4050-<volume id> <issue number>` (for example, `4050-160511 1`) or `<volume name> <issue number>`. A folder name with no issue number, including a bare ComicVine ID such as `4050-89803`, is treated as issue `1`. The workflow creates:
+When `ENABLE_COMIC_VINE=true`, each completed folder is matched to ComicVine. Folder names may use the ComicVine ID form `4050-<volume id> <issue number>` (for example, `4050-160511 1`) or `<volume name> <issue number>`. A folder name with no issue number, including a bare ComicVine ID such as `4050-89803`, is treated as issue `1`. Destination volume names remove `!`, `?`, `.`, and `'`, replace `/` with ` - `, and replace `:` with ` -`; the normalized name is used for both the output folder and CBZ archive. For example, `Black Hammer/Justice League: Hammer of Justice!` becomes `Black Hammer - Justice League - Hammer of Justice`, `Grimm Spotlight - Hercules Payne vs. The Scorpion Queen` becomes `Grimm Spotlight - Hercules Payne vs The Scorpion Queen`, and `Black Hammer '45` becomes `Black Hammer 45`. If the ComicVine volume or issue `deck` includes `Volume <number>`, the `(v<number>)` marker is added before the start year in the output folder and archive name (for example, `Hawkman (v1)(1964)`). The workflow creates:
 
 ```text
 step4_done/<Volume Name> (<start year>)/<Volume Name> (<start year>) - <issue padded to 3>.cbz
+step4_done/<Volume Name> (v<number>)(<start year>)/<Volume Name> (v<number>)(<start year>) - <issue padded to 3>.cbz
 ```
 
 For example, issue `1` becomes `001.cbz`. The archive contains the page images and a `ComicInfo.xml` file at its root. Available volume and issue metadata is written into ComicInfo fields; fields without values are emitted as empty XML elements. After the CBZ is successfully created, its source folder is moved to `step0_trash`. If ComicVine lookup or archive creation fails, the error is reported and the source folder remains in `step3_completed` for review or retry.

@@ -5,8 +5,11 @@ import os
 import shutil
 import uuid
 import zipfile  # Added for .cbz (ZIP) files
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit
 
 import py7zr  # Added for .cb7 (7zip) files
 import requests  # type: ignore[import-not-found, import-untyped]  # pyright: ignore[reportMissingModuleSource]
@@ -38,6 +41,46 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+_comicvine_call_capture: ContextVar[list[dict[str, Any]] | None] = ContextVar(
+    "comicvine_call_capture", default=None
+)
+
+
+@contextmanager
+def capture_comicvine_calls():
+    """Capture full ComicVine JSON responses for a DEBUG diagnostic dump."""
+    calls: list[dict[str, Any]] = []
+    if not logger.isEnabledFor(logging.DEBUG):
+        yield calls
+        return
+
+    token = _comicvine_call_capture.set(calls)
+    try:
+        yield calls
+    finally:
+        _comicvine_call_capture.reset(token)
+
+
+def _record_comicvine_response(response, data: Any) -> None:
+    calls = _comicvine_call_capture.get()
+    if calls is None:
+        return
+
+    parsed_url = urlsplit(response.url)
+    safe_params = {
+        key: value
+        for key, value in parse_qsl(parsed_url.query, keep_blank_values=True)
+        if key.casefold() not in {"api_key", "key"}
+    }
+    calls.append(
+        {
+            "method": response.request.method,
+            "endpoint": parsed_url.path,
+            "params": safe_params,
+            "status_code": response.status_code,
+            "response": data,
+        }
+    )
 
 # Read configuration
 api_key = os.getenv("API_KEY")
@@ -192,8 +235,9 @@ def fetch_comics(query: str, limit: int = 10) -> list[dict[str, Any]]:
             headers=COMICVINE_HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
         data = response.json()
+        _record_comicvine_response(response, data)
+        response.raise_for_status()
         return data.get("results", [])
     except requests.RequestException as e:
         logger.error(f"Error fetching comics: {e}")
@@ -220,8 +264,9 @@ def fetch_volumes(query: str, limit: int = 10) -> list[dict[str, Any]]:
             headers=COMICVINE_HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
         data = response.json()
+        _record_comicvine_response(response, data)
+        response.raise_for_status()
         return data.get("results", [])
     except requests.RequestException as e:
         logger.error(f"Error fetching volumes: {e}")
@@ -245,8 +290,9 @@ def fetch_comic_by_id(id: int) -> dict[str, Any] | None:
             headers=COMICVINE_HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
         data = response.json()
+        _record_comicvine_response(response, data)
+        response.raise_for_status()
         return data.get("results")
     except requests.RequestException as e:
         logger.error(f"Error fetching comic by ID: {e}")
@@ -270,8 +316,9 @@ def fetch_volume_by_id(id: int) -> dict[str, Any] | None:
             headers=COMICVINE_HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
         data = response.json()
+        _record_comicvine_response(response, data)
+        response.raise_for_status()
         return data.get("results")
     except requests.RequestException as e:
         logger.error(f"Error fetching volume by ID: {e}")
@@ -300,8 +347,9 @@ def fetch_issues_by_volume_and_number(
             headers=COMICVINE_HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
         data = response.json()
+        _record_comicvine_response(response, data)
+        response.raise_for_status()
         return data.get("results", [])
     except requests.RequestException as e:
         logger.error(f"Error fetching issue {issue_number} for volume {volume_id}: {e}")
@@ -337,8 +385,9 @@ def search_comics(
             headers=COMICVINE_HEADERS,
             timeout=30,
         )
-        response.raise_for_status()
         data = response.json()
+        _record_comicvine_response(response, data)
+        response.raise_for_status()
         return data.get("results", [])
     except requests.RequestException as e:
         logger.error(f"Error searching comics: {e}")

@@ -10,6 +10,9 @@ This repository processes comic archives through the numbered folders documented
 - Keep workflow folder names in the module-level `*_DIR_NAME` constants in `job_flow.py`. Update the README when a folder or stage changes.
 - Use `PARENT_DIR` for the comics root; do not add machine-specific paths to workflow code.
 - Keep ComicVine requests behind `ENABLE_COMIC_VINE`. The default must remain disabled. Use `COMICVINE_API_KEY` for authentication and do not print or expose credentials.
+- When writing ComicVine DEBUG response dumps, omit API keys from request metadata and place one JSON file per call in the resolved `step4_done` volume folder (use `_comicvine_debug` if the volume cannot be resolved).
+- When the ComicVine volume or issue `deck` contains `Volume <number>`, include `(v<number>)` before the start year in both the volume folder and CBZ filename.
+- For ComicVine destination names, remove `!`, `?`, `.`, and `'`, replace `/` with ` - `, and replace `:` with ` -`; use the normalized name in both the folder and archive filename.
 - Keep dependencies in `requirements.txt`. Prefer portable Python libraries over machine-specific applications or commands.
 - The barcode-removal workflow checks the first image in natural filename order in each `step2.2_process_remove_barcode` issue folder. It uses ZXing to locate barcodes in the lower half, fills their enclosing panel when detected, and also detects large solid dark rectangles used in place of barcodes. Before editing, preserve the original once as `<filename>_o.<extension>`, and use `#00FF00` for the fill.
 - `SKIP_BARCODE_PROCESSING=true` disables the automatic barcode-removal pass; its default is `false`.

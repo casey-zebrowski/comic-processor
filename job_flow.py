@@ -1,5 +1,6 @@
 import fnmatch
 import html
+import json
 import logging
 import os
 import re
@@ -20,6 +21,7 @@ from comic_processor import (
     fetch_issues_by_volume_and_number,
     fetch_volume_by_id,
     fetch_volumes,
+    capture_comicvine_calls,
 )
 
 logger = logging.getLogger(__name__)
@@ -468,40 +470,68 @@ def lookup_volume_and_issue(folder_name):
 
 def archive_completed_issue(folder_path, done_dir, trash_dir):
     folder_name = os.path.basename(folder_path)
-    volume, volume_id, issue_number = lookup_volume_and_issue(folder_name)
-    volume_name = str(volume.get("name", "")).strip()
-    start_year = str(volume.get("start_year", "")).strip()
-    if not volume_name or not start_year:
-        raise ValueError(
-            f"ComicVine did not return a volume name and start year for {folder_name}"
-        )
+    debug_calls = []
+    debug_output_dir = os.path.join(done_dir, "_comicvine_debug")
+    try:
+        with capture_comicvine_calls() as debug_calls:
+            volume, volume_id, issue_number = lookup_volume_and_issue(folder_name)
+            volume_name = str(volume.get("name", "")).strip()
+            start_year = str(volume.get("start_year", "")).strip()
+            if not volume_name or not start_year:
+                raise ValueError(
+                    "ComicVine did not return a volume name and start year "
+                    f"for {folder_name}"
+                )
 
-    issues = fetch_issues_by_volume_and_number(volume_id, issue_number)
-    exact_issues = [
-        issue
-        for issue in issues
-        if str(issue.get("issue_number", "")).casefold() == issue_number.casefold()
-    ]
-    if not exact_issues:
-        raise ValueError(
-            f"ComicVine issue {issue_number} was not found in volume {volume_name}"
-        )
-    if len(exact_issues) > 1:
-        raise ValueError(
-            f"ComicVine returned multiple matches for issue {issue_number} "
-            f"in volume {volume_name}"
-        )
-    issue = fetch_comic_by_id(int(exact_issues[0]["id"])) or exact_issues[0]
+            normalized_volume_name = volume_name.replace("/", " - ")
+            normalized_volume_name = normalized_volume_name.replace(":", " -")
+            normalized_volume_name = normalized_volume_name.replace("!", "")
+            normalized_volume_name = normalized_volume_name.replace("?", "")
+            normalized_volume_name = normalized_volume_name.replace(".", "")
+            normalized_volume_name = normalized_volume_name.replace("'", "")
+            normalized_volume_name = re.sub(r" {2,}", " ", normalized_volume_name)
+            safe_volume_name = re.sub(
+                r'[<>"/\\|?*]', "_", normalized_volume_name
+            ).strip(" .")
+            volume_folder_name = f"{safe_volume_name} ({start_year})"
+            volume_folder = os.path.join(done_dir, volume_folder_name)
+            debug_output_dir = volume_folder
 
-    normalized_volume_name = volume_name.replace(":", " -")
-    normalized_volume_name = re.sub(r" {2,}", " ", normalized_volume_name)
-    safe_volume_name = re.sub(
-        r'[<>"/\\|?*]', "_", normalized_volume_name
-    ).strip(" .")
-    volume_folder_name = f"{safe_volume_name} ({start_year})"
-    volume_folder = os.path.join(done_dir, volume_folder_name)
+            issues = fetch_issues_by_volume_and_number(volume_id, issue_number)
+            exact_issues = [
+                issue
+                for issue in issues
+                if str(issue.get("issue_number", "")).casefold()
+                == issue_number.casefold()
+            ]
+            if not exact_issues:
+                raise ValueError(
+                    f"ComicVine issue {issue_number} was not found in volume {volume_name}"
+                )
+            if len(exact_issues) > 1:
+                raise ValueError(
+                    f"ComicVine returned multiple matches for issue {issue_number} "
+                    f"in volume {volume_name}"
+                )
+            issue = fetch_comic_by_id(int(exact_issues[0]["id"])) or exact_issues[0]
+
+            deck_values = (volume.get("deck"), issue.get("deck"))
+            deck_text = " ".join(str(value) for value in deck_values if value)
+            deck_match = re.search(r"\bVolume\s+(\d+)\b", deck_text, re.IGNORECASE)
+            if deck_match:
+                volume_number = int(deck_match.group(1))
+                volume_folder_name = (
+                    f"{safe_volume_name} (v{volume_number})({start_year})"
+                )
+                volume_folder = os.path.join(done_dir, volume_folder_name)
+                debug_output_dir = volume_folder
+    except Exception:
+        write_comicvine_debug_files(debug_output_dir, folder_name, debug_calls)
+        raise
+    else:
+        write_comicvine_debug_files(debug_output_dir, folder_name, debug_calls)
+
     os.makedirs(volume_folder, exist_ok=True)
-
     issue_match = re.fullmatch(r"(\d+)([A-Za-z]*)", issue_number)
     if not issue_match:
         raise ValueError(f"Unsupported ComicVine issue number: {issue_number}")
@@ -542,6 +572,27 @@ def archive_completed_issue(folder_path, done_dir, trash_dir):
     )
     shutil.move(folder_path, trash_destination)
     logger.info(f"Moved archived source folder to trash: {trash_destination}")
+
+
+def write_comicvine_debug_files(destination_dir, comic_folder_name, calls):
+    """Write one sanitized API response JSON file per captured ComicVine call."""
+    if not logger.isEnabledFor(logging.DEBUG) or not calls:
+        return
+
+    safe_comic_name = re.sub(
+        r'[<>:"/\\|?*]', "_", comic_folder_name
+    ).strip(" .") or "comic"
+    try:
+        os.makedirs(destination_dir, exist_ok=True)
+        for index, call in enumerate(calls, start=1):
+            file_name = f"{safe_comic_name}_comicvine_{index:02d}.json"
+            debug_path = unique_file_path(destination_dir, file_name)
+            with open(debug_path, "w", encoding="utf-8") as debug_file:
+                json.dump(call, debug_file, indent=2, ensure_ascii=False)
+                debug_file.write("\n")
+            logger.debug(f"Wrote ComicVine response data: {debug_path}")
+    except OSError as error:
+        logger.error(f"Could not write ComicVine debug data to {destination_dir}: {error}")
 
 
 def build_comic_info_xml(volume, issue, page_count):

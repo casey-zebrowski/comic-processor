@@ -686,7 +686,7 @@ def convert_comic_files(base_dir):
             )
             status["processed"] += 1
             result = "processed"
-        except (OSError, ValueError) as error:
+        except Exception as error:
             status["failed"] += 1
             result = f"failed: {error}"
         logger.info(
@@ -754,7 +754,15 @@ def convert_comic_file(
         logger.info(f"Successfully processed: {file_name}")
     except Exception as e:
         logger.error(f"Failed to process: {file_name} - Error: {e}")
-        shutil.move(comic_path, os.path.join(convert_failed_dir, file_name))
+        failed_path = unique_file_path(convert_failed_dir, file_name)
+        shutil.move(comic_path, failed_path)
+        try:
+            shutil.rmtree(destination_folder)
+        except OSError as cleanup_error:
+            logger.warning(
+                f"Could not remove incomplete extraction folder "
+                f"{destination_folder}: {cleanup_error}"
+            )
         raise
 
     # Flatten files from any extracted subdirectories into the destination folder.

@@ -59,6 +59,7 @@ The job reports the comic count, progress, and conversion results. It creates an
 - Existing destination folder names are preserved. A collision creates a numbered folder such as `Issue (1)`.
 - Extracted files are flattened into the issue folder. Files matching case-insensitive wildcard patterns in `junk_files.txt` are moved to `step0.1_junk_files/<issue folder>/`.
 - Readable images are converted to JPEG. Other files are moved to `step1.1_convert_failed`.
+- An archive that fails extraction is moved to `step1.1_convert_failed`; its incomplete extraction folder is removed, and the job continues with the next archive.
 - For each issue folder in `step2.2_process_remove_barcode`, the job checks the first image in natural filename order for a barcode in the lower half. It covers the enclosing panel when detected, or a large solid dark rectangle used in place of a barcode, with `#00FF00`. Before editing, it saves the original once as `<filename>_o.<extension>`; existing backups are preserved. Folders without a detected barcode or solid rectangle are left unchanged.
 - After each run, `junk_files.txt` is sorted and its nonblank patterns are converted to lowercase.
 

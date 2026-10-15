@@ -2,10 +2,15 @@
 *.sfv
 *.xml
 x-future scan*
+xbluntmanx*
 xsou5b*
 xtag01*
 zempire*
+zsou-nerd*
 zthe-hand*
+ztube*
 zwater*
 zztag*
 zzz *
+zzzglorithsolo*
+zzzzzzzz*

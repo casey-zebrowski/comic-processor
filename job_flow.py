@@ -489,6 +489,7 @@ def archive_completed_issue(folder_path, done_dir, trash_dir):
             normalized_volume_name = normalized_volume_name.replace("?", "")
             normalized_volume_name = normalized_volume_name.replace(".", "")
             normalized_volume_name = normalized_volume_name.replace("'", "")
+            normalized_volume_name = normalized_volume_name.replace("&", "and")
             normalized_volume_name = re.sub(r" {2,}", " ", normalized_volume_name)
             safe_volume_name = re.sub(
                 r'[<>"/\\|?*]', "_", normalized_volume_name

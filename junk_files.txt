@@ -1,7 +1,6 @@
 *.db
 *.sfv
 *.xml
-sootwgsh*
 x-future scan*
 xbluntmanx*
 xsou5b*
@@ -12,6 +11,7 @@ zempire*
 zsou-nerd*
 zthe-hand*
 ztube*
+zwater*
 zwater*
 zztag*
 zzz *

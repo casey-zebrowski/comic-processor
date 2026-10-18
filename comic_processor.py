@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shutil
 import uuid
 import zipfile  # Added for .cbz (ZIP) files
@@ -92,6 +93,16 @@ COMICVINE_HEADERS = {
     "User-Agent": "ComicProcessor/1.0 (personal comic library)",
     "Accept": "application/json",
 }
+
+
+def _safe_comicvine_error(error):
+    """Remove API credentials from request exceptions before logging them."""
+    message = re.sub(
+        r"([?&](?:api_key|key)=)[^&\s]+", r"\1[REDACTED]", str(error), flags=re.IGNORECASE
+    )
+    if API_KEY:
+        message = message.replace(API_KEY, "[REDACTED]")
+    return message
 
 # Komga configuration
 KOMGA_LIBRARY_PATH = os.getenv("KOMGA_LIBRARY_PATH")
@@ -210,7 +221,7 @@ def notify_komga_of_new_comic(file_path: str) -> None:
         response.raise_for_status()
         logger.info(f"Successfully notified Komga of new comic: {file_path}")
     except requests.RequestException as e:
-        logger.error(f"Error notifying Komga of new comic: {e}")
+        logger.error(f"Error notifying Komga of new comic: {_safe_comicvine_error(e)}")
         raise
 
 
@@ -238,9 +249,14 @@ def fetch_comics(query: str, limit: int = 10) -> list[dict[str, Any]]:
         data = response.json()
         _record_comicvine_response(response, data)
         response.raise_for_status()
+        if data.get("status_code") not in (None, 1):
+            raise RuntimeError(
+                "ComicVine search failed with API status "
+                f"{data.get('status_code')}: {data.get('error', 'Unknown API error')}"
+            )
         return data.get("results", [])
     except requests.RequestException as e:
-        logger.error(f"Error fetching comics: {e}")
+        logger.error(f"Error fetching comics: {_safe_comicvine_error(e)}")
         raise
 
 
@@ -267,9 +283,14 @@ def fetch_volumes(query: str, limit: int = 10) -> list[dict[str, Any]]:
         data = response.json()
         _record_comicvine_response(response, data)
         response.raise_for_status()
+        if data.get("status_code") not in (None, 1):
+            raise RuntimeError(
+                "ComicVine volume search failed with API status "
+                f"{data.get('status_code')}: {data.get('error', 'Unknown API error')}"
+            )
         return data.get("results", [])
     except requests.RequestException as e:
-        logger.error(f"Error fetching volumes: {e}")
+        logger.error(f"Error fetching volumes: {_safe_comicvine_error(e)}")
         raise
 
 
@@ -295,7 +316,7 @@ def fetch_comic_by_id(id: int) -> dict[str, Any] | None:
         response.raise_for_status()
         return data.get("results")
     except requests.RequestException as e:
-        logger.error(f"Error fetching comic by ID: {e}")
+        logger.error(f"Error fetching comic by ID: {_safe_comicvine_error(e)}")
         raise
 
 
@@ -321,7 +342,7 @@ def fetch_volume_by_id(id: int) -> dict[str, Any] | None:
         response.raise_for_status()
         return data.get("results")
     except requests.RequestException as e:
-        logger.error(f"Error fetching volume by ID: {e}")
+        logger.error(f"Error fetching volume by ID: {_safe_comicvine_error(e)}")
         raise
 
 
@@ -352,7 +373,10 @@ def fetch_issues_by_volume_and_number(
         response.raise_for_status()
         return data.get("results", [])
     except requests.RequestException as e:
-        logger.error(f"Error fetching issue {issue_number} for volume {volume_id}: {e}")
+        logger.error(
+            f"Error fetching issue {issue_number} for volume {volume_id}: "
+            f"{_safe_comicvine_error(e)}"
+        )
         raise
 
 
@@ -390,7 +414,7 @@ def search_comics(
         response.raise_for_status()
         return data.get("results", [])
     except requests.RequestException as e:
-        logger.error(f"Error searching comics: {e}")
+        logger.error(f"Error searching comics: {_safe_comicvine_error(e)}")
         raise
 
 

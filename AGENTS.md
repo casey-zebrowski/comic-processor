@@ -13,6 +13,7 @@ This repository processes comic archives through the numbered folders documented
 - When writing ComicVine DEBUG response dumps, omit API keys from request metadata and place one JSON file per call in the resolved `step4_done` volume folder (use `_comicvine_debug` if the volume cannot be resolved).
 - When the ComicVine volume or issue `deck` contains `Volume <number>`, include `(v<number>)` before the start year in both the volume folder and CBZ filename.
 - For ComicVine destination names, remove `!`, `?`, `.`, and `'`, replace `/` with ` - `, replace `:` with ` - `, and replace `&` with `and`; use the normalized name in both the folder and archive filename.
+- The `refresh_comicvine_deck_names.py` utility operates on existing top-level CBZ folders from embedded ComicInfo metadata. Keep it dry-run by default, cache successful/ambiguous lookups, and avoid overwriting on folder or archive name collisions.
 - Keep dependencies in `requirements.txt`. Prefer portable Python libraries over machine-specific applications or commands.
 - The barcode-removal workflow checks the first image in natural filename order in each `step2.2_process_remove_barcode` issue folder. It uses ZXing to locate barcodes in the lower half, fills their enclosing panel when detected, and also detects large solid dark rectangles used in place of barcodes. Before editing, preserve the original once as `<filename>_o.<extension>`, and use `#00FF00` for the fill.
 - `SKIP_BARCODE_PROCESSING=true` disables the automatic barcode-removal pass; its default is `false`.

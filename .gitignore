@@ -136,6 +136,8 @@ celerybeat.pid
 
 # Environments
 .env
+.comicvine_deck_refresh_cache.json
+comicvine_deck_refresh_cache.json
 .envrc
 .venv
 env/

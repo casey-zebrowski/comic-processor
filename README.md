@@ -78,6 +78,8 @@ step4_done/<Volume Name> (v<number>)(<start year>)/<Volume Name> (v<number>)(<st
 
 For example, issue `1` becomes `001.cbz`. The archive contains the page images and a `ComicInfo.xml` file at its root. Available volume and issue metadata is written into ComicInfo fields; fields without values are emitted as empty XML elements. After the CBZ is successfully created, its source folder is moved to `step0_trash`. If ComicVine lookup or archive creation fails, the error is reported and the source folder remains in `step3_completed` for review or retry.
 
+To update existing CBZ folders from their embedded `ComicInfo.xml` metadata, run `python refresh_comicvine_deck_names.py --root /path/to/comic/library` for a dry run. Add `--apply` to rename folders and CBZ files. The utility caches volume lookups in `comicvine_deck_refresh_cache.json` so large libraries can be handled in batches; it defaults to at most 450 new volume searches per run. If ComicVine throttles the request, the batch pauses and can be resumed later with the same cache.
+
 ## Other modules
 
 - `comic_processor.py` contains archive extraction, ComicVine API helpers, and optional Komga integration functions.

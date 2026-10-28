@@ -34,7 +34,7 @@ def xml_values(xml_data):
     values = {}
     for element in root.iter():
         tag = element.tag.rsplit("}", 1)[-1].casefold()
-        if tag in {"series", "volume", "number", "web", "year"}:
+        if tag in {"series", "volume", "number", "web", "year", "title"}:
             values[tag] = (element.text or "").strip()
     return values
 
@@ -52,7 +52,7 @@ def read_comic_info(archive_path):
 
 def safe_volume_name(name):
     name = name.replace("/", " - ").replace(":", " - ")
-    for character in ("!", "?", ".", "'", "&"):
+    for character in ("!", "?", '"', ",", ".", "'", "&"):
         name = name.replace(character, "and" if character == "&" else "")
     name = re.sub(r"\s{2,}", " ", name).strip()
     return re.sub(r'[<>"/\\|?*]', "_", name).strip(" .")
@@ -160,11 +160,21 @@ def plan_folder(folder, archive_paths, cache, cache_path):
         time.sleep(18)
     volume = cache[key]
     volume_number = volume.get("volume_number")
-    if volume.get("status") != "matched" or not volume_number:
+    if volume.get("status") != "matched":
         return None, volume
 
     clean_name = safe_volume_name(volume.get("name") or series)
-    destination_name = f"{clean_name} (v{volume_number})({volume.get('year') or year})"
+    issue_has_tpb_title = any(
+        re.search(r"\bTPB\b", values.get("title", ""), re.IGNORECASE)
+        for _, values, _, _ in values_by_archive
+    )
+    if issue_has_tpb_title and not re.search(r"\bTPB\b", clean_name, re.IGNORECASE):
+        clean_name = f"{clean_name} TPB"
+    destination_year = volume.get("year") or year
+    if volume_number:
+        destination_name = f"{clean_name} (v{volume_number})({destination_year})"
+    else:
+        destination_name = f"{clean_name} ({destination_year})"
     destination = unique_path(folder.parent / destination_name) if folder.name != destination_name else folder
     renames = []
     for archive_path, values, _, _ in values_by_archive:
@@ -205,6 +215,11 @@ def main():
     parser.add_argument("--root", type=Path, default=Path("/Volumes/comics"))
     parser.add_argument("--apply", action="store_true", help="perform the planned renames")
     parser.add_argument("--max-lookups", type=int, default=450)
+    parser.add_argument(
+        "--cached-only",
+        action="store_true",
+        help="skip folders without an existing cached ComicVine result",
+    )
     parser.add_argument("--cache", type=Path, default=CACHE_PATH)
     parser.add_argument("--log-level", default=os.getenv("LOG_LEVEL", "INFO"))
     args = parser.parse_args()
@@ -237,6 +252,9 @@ def main():
             key = volume_cache_key(
                 first_values.get("series", ""), start_year_for_folder(folder, first_values)
             )
+            if args.cached_only and key not in cache:
+                skipped += 1
+                continue
             if key not in cache:
                 if completed_lookups >= args.max_lookups:
                     LOGGER.info("Reached --max-lookups=%d; rerun later to continue.", args.max_lookups)

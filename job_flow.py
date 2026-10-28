@@ -41,6 +41,18 @@ COMPLETED_DIR_NAME = "step3_completed"
 DONE_DIR_NAME = "step4_done"
 
 
+def configure_logging() -> None:
+    """Configure console logging for the workflow command."""
+    configured_level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+    level = getattr(logging, configured_level, logging.INFO)
+    if not isinstance(level, int):
+        level = logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
 def create_required_folders(base_dir):
     folders = [
         TRASH_DIR_NAME,
@@ -76,19 +88,25 @@ def get_unique_destination_folder(parent_dir, folder_name):
 def extract_issue_number(filename):
     """Extract a comic issue token, removing leading zeroes from its number."""
     stem = os.path.splitext(os.path.basename(filename))[0]
-    match = re.search(r"(?<![\w])(\d+[A-Za-z]*)\s+\((?:18|19|20)\d{2}\)", stem)
+    match = re.search(
+        r"(?<![\w])(\d+(?:\.\d+)?[A-Za-z]*)\s+\((?:18|19|20)\d{2}\)",
+        stem,
+    )
     if not match:
         title = re.split(r"\s+\(", stem, maxsplit=1)[0]
-        issue_tokens = re.findall(r"(?<![\w])\d+[A-Za-z]*", title)
+        issue_tokens = re.findall(r"(?<![\w])\d+(?:\.\d+)?[A-Za-z]*", title)
         if not issue_tokens:
             raise ValueError(f"Could not find an issue number in filename: {filename}")
         issue_token = issue_tokens[-1]
     else:
         issue_token = match.group(1)
 
-    number_and_suffix = re.fullmatch(r"0*(\d+)([A-Za-z]*)", issue_token)
+    number_and_suffix = re.fullmatch(r"0*(\d+)(\.\d+)?([A-Za-z]*)", issue_token)
     if number_and_suffix:
-        return f"{int(number_and_suffix.group(1))}{number_and_suffix.group(2)}"
+        return (
+            f"{int(number_and_suffix.group(1))}"
+            f"{number_and_suffix.group(2) or ''}{number_and_suffix.group(3)}"
+        )
     return issue_token
 
 
@@ -425,7 +443,9 @@ def lookup_volume_and_issue(folder_name):
     A folder name without an explicit issue number represents issue 1.
     """
     comicvine_id_match = re.fullmatch(
-        r"4050-(\d+)(?:\s+(\d+[A-Za-z]*))?", folder_name, flags=re.IGNORECASE
+        r"4050-(\d+)(?:\s+(\d+(?:\.\d+)?[A-Za-z]*))?",
+        folder_name,
+        flags=re.IGNORECASE,
     )
     if comicvine_id_match:
         volume_id = int(comicvine_id_match.group(1))
@@ -436,7 +456,7 @@ def lookup_volume_and_issue(folder_name):
         return volume, volume_id, issue_number
 
     name_match = re.fullmatch(
-        r"(?P<name>.+?)(?:\s+\((?P<year>\d{4})\))?(?:\s+(?P<issue>\d+[A-Za-z]*))?",
+        r"(?P<name>.+?)(?:\s+\((?P<year>\d{4})\))?(?:\s+(?P<issue>\d+(?:\.\d+)?[A-Za-z]*))?",
         folder_name,
     )
     if not name_match:
@@ -487,6 +507,8 @@ def archive_completed_issue(folder_path, done_dir, trash_dir):
             normalized_volume_name = normalized_volume_name.replace(":", " -")
             normalized_volume_name = normalized_volume_name.replace("!", "")
             normalized_volume_name = normalized_volume_name.replace("?", "")
+            normalized_volume_name = normalized_volume_name.replace('"', "")
+            normalized_volume_name = normalized_volume_name.replace(",", "")
             normalized_volume_name = normalized_volume_name.replace(".", "")
             normalized_volume_name = normalized_volume_name.replace("'", "")
             normalized_volume_name = normalized_volume_name.replace("&", "and")
@@ -516,6 +538,15 @@ def archive_completed_issue(folder_path, done_dir, trash_dir):
                 )
             issue = fetch_comic_by_id(int(exact_issues[0]["id"])) or exact_issues[0]
 
+            issue_title = str(issue.get("name") or "").strip()
+            if re.search(r"\bTPB\b", issue_title, re.IGNORECASE) and not re.search(
+                r"\bTPB\b", safe_volume_name, re.IGNORECASE
+            ):
+                safe_volume_name = f"{safe_volume_name} TPB"
+                volume_folder_name = f"{safe_volume_name} ({start_year})"
+                volume_folder = os.path.join(done_dir, volume_folder_name)
+                debug_output_dir = volume_folder
+
             deck_values = (volume.get("deck"), issue.get("deck"))
             deck_text = " ".join(str(value) for value in deck_values if value)
             deck_match = re.search(r"\bVolume\s+(\d+)\b", deck_text, re.IGNORECASE)
@@ -533,10 +564,13 @@ def archive_completed_issue(folder_path, done_dir, trash_dir):
         write_comicvine_debug_files(debug_output_dir, folder_name, debug_calls)
 
     os.makedirs(volume_folder, exist_ok=True)
-    issue_match = re.fullmatch(r"(\d+)([A-Za-z]*)", issue_number)
+    issue_match = re.fullmatch(r"(\d+)(\.\d+)?([A-Za-z]*)", issue_number)
     if not issue_match:
         raise ValueError(f"Unsupported ComicVine issue number: {issue_number}")
-    padded_issue_number = f"{int(issue_match.group(1)):03d}{issue_match.group(2)}"
+    padded_issue_number = (
+        f"{int(issue_match.group(1)):03d}"
+        f"{issue_match.group(2) or ''}{issue_match.group(3)}"
+    )
     archive_name = f"{volume_folder_name} - {padded_issue_number}.cbz"
     archive_path = os.path.join(volume_folder, archive_name)
 
@@ -880,4 +914,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

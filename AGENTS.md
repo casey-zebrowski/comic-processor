@@ -12,9 +12,13 @@ This repository processes comic archives through the numbered folders documented
 - Keep ComicVine requests behind `ENABLE_COMIC_VINE`. The default must remain disabled. Use `COMICVINE_API_KEY` for authentication and do not print or expose credentials.
 - When writing ComicVine DEBUG response dumps, omit API keys from request metadata and place one JSON file per call in the resolved `step4_done` volume folder (use `_comicvine_debug` if the volume cannot be resolved).
 - When the ComicVine volume or issue `deck` contains `Volume <number>`, include `(v<number>)` before the start year in both the volume folder and CBZ filename.
-- For ComicVine destination names, remove `!`, `?`, `.`, and `'`, replace `/` with ` - `, replace `:` with ` - `, and replace `&` with `and`; use the normalized name in both the folder and archive filename.
-- The `refresh_comicvine_deck_names.py` utility operates on existing top-level CBZ folders from embedded ComicInfo metadata. Keep it dry-run by default, cache successful/ambiguous lookups, and avoid overwriting on folder or archive name collisions.
+- If the matched ComicVine issue title contains `TPB`, append ` TPB` to the normalized volume name used in both the destination folder and CBZ filename, before year/volume markers.
+- Accept decimal ComicVine issue numbers such as `615.1` in folder parsing, API matching, and CBZ naming; pad only the integer part.
+- For ComicVine destination names, remove `!`, `?`, `"`, `,`, `.`, and `'`, replace `/` with ` - `, replace `:` with ` - `, and replace `&` with `and`; use the normalized name in both the folder and archive filename.
+- The `refresh_comicvine_deck_names.py` utility operates on existing top-level CBZ folders from embedded ComicInfo metadata. Keep it dry-run by default, cache successful/ambiguous lookups, support cached-only batches, and avoid overwriting on folder or archive name collisions.
+- In that refresh utility, append ` TPB` when any issue's ComicInfo title contains `TPB`.
 - Keep dependencies in `requirements.txt`. Prefer portable Python libraries over machine-specific applications or commands.
+- Configure the GetComics archive scraper through `GET_COMICS_ORG_DELAY_SECONDS` and `GET_COMICS_ORG_RETRY_COUNT` in `.env`; keep their defaults documented in `.env.example` and `README.md`.
 - The barcode-removal workflow checks the first image in natural filename order in each `step2.2_process_remove_barcode` issue folder. It uses ZXing to locate barcodes in the lower half, fills their enclosing panel when detected, and also detects large solid dark rectangles used in place of barcodes. Before editing, preserve the original once as `<filename>_o.<extension>`, and use `#00FF00` for the fill.
 - `SKIP_BARCODE_PROCESSING=true` disables the automatic barcode-removal pass; its default is `false`.
 - Avoid overwriting existing comic destinations or archives. Preserve the current numbered-suffix behavior for collisions.

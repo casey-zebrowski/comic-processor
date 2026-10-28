@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+"""Archive extraction and optional ComicVine and Komga integration helpers.
+
+The module is import-safe: it exposes reusable functions but does not configure
+application logging or execute requests when imported.
+"""
 
 import logging
 import os
@@ -33,18 +37,26 @@ from unrar.cffi import rarfile as unrar_rarfile  # type: ignore
 PROJECT_DIR = Path(__file__).resolve().parent
 load_dotenv(PROJECT_DIR / ".env")
 
-_configured_log_level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
-_log_level = getattr(logging, _configured_log_level, logging.INFO)
-if not isinstance(_log_level, int):
-    _log_level = logging.INFO
-logging.basicConfig(
-    level=_log_level,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
 logger = logging.getLogger(__name__)
 _comicvine_call_capture: ContextVar[list[dict[str, Any]] | None] = ContextVar(
     "comicvine_call_capture", default=None
 )
+
+__all__ = [
+    "capture_comicvine_calls",
+    "extract_archive",
+    "fetch_comic_by_id",
+    "fetch_comics",
+    "fetch_issues_by_volume_and_number",
+    "fetch_volume_by_id",
+    "fetch_volumes",
+    "get_api_key_status",
+    "move_to_komga",
+    "move_to_komga_smb",
+    "notify_komga_of_new_comic",
+    "process_comic",
+    "search_comics",
+]
 
 
 @contextmanager
@@ -83,9 +95,6 @@ def _record_comicvine_response(response, data: Any) -> None:
         }
     )
 
-# Read configuration
-api_key = os.getenv("API_KEY")
-
 # ComicVine API configuration
 COMICVINE_API_BASE = "https://comicvine.gamespot.com/api"
 API_KEY = os.getenv("COMICVINE_API_KEY") or os.getenv("VITE_COMICVINE_API_KEY")
@@ -111,17 +120,6 @@ KOMGA_API_KEY = os.getenv("KOMGA_API_KEY")
 KOMGA_SMB_PATH = os.getenv("KOMGA_SMB_PATH")
 KOMGA_SMB_USERNAME = os.getenv("KOMGA_SMB_USERNAME")
 KOMGA_SMB_PASSWORD = os.getenv("KOMGA_SMB_PASSWORD")
-
-if not API_KEY:
-    logger.warning(
-        "ComicVine API key not found. Set COMICVINE_API_KEY to enable ComicVine requests."
-    )
-
-if not KOMGA_LIBRARY_PATH and not KOMGA_URL and not KOMGA_SMB_PATH:
-    logger.warning(
-        "No Komga destination is configured; set a Komga path or URL to use Komga integration."
-    )
-
 
 def move_to_komga(file_path: str) -> None:
     """Move a comic file to the Komga library directory or notify Komga of a new comic"""
@@ -538,39 +536,3 @@ def process_comic(comic_file: str) -> None:
     except Exception as e:
         logger.error(f"Error processing comic: {e}")
         raise
-
-
-# Example usage
-if __name__ == "__main__":
-    # Check if API key is set
-    status = get_api_key_status()
-    logger.info(f"API Key Status: {'Valid' if status['is_valid'] else 'Invalid'}")
-
-    if status["is_valid"]:
-        try:
-            # Example search for comics
-            comics = fetch_comics("spider-man", 5)
-            logger.info(f'Found {len(comics)} comics matching "spider-man"')
-
-            # Example search for volumes
-            volumes = fetch_volumes("marvel", 5)
-            logger.info(f'Found {len(volumes)} volumes matching "marvel"')
-
-            # Process a comic (example)
-            # Uncomment and modify the line below to process a real comic file
-            # process_comic('/path/to/comic.cbz')
-
-            # Example of setting environment variables for Komga
-            # os.environ['KOMGA_LIBRARY_PATH'] = '/path/to/komga/library'
-            # os.environ['KOMGA_URL'] = 'http://komga.local:8585'
-            # os.environ['KOMGA_API_KEY'] = 'your_komga_api_key'
-            # os.environ['KOMGA_SMB_PATH'] = 'smb://truenas.local/comics'
-            # os.environ['KOMGA_SMB_USERNAME'] = 'your_username'
-            # os.environ['KOMGA_SMB_PASSWORD'] = 'your_password'
-
-        except (requests.RequestException, ValueError) as e:
-            logger.error(f"Error: {e}")
-    else:
-        logger.info(
-            "Please set your ComicVine API key in the environment variable COMICVINE_API_KEY"
-        )

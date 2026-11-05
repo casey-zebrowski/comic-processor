@@ -44,10 +44,10 @@ import comic_processor
 comic_processor.create_folders()
 
 # Fetch comics from ComicVine API
-comics = comic_processor.fetch_comics('spider-man', 10)
+comics = comic_processor.fetch_comics("spider-man", 10)
 
-# Fetch volumes from ComicVine API  
-volumes = comic_processor.fetch_volumes('marvel', 5)
+# Fetch volumes from ComicVine API
+volumes = comic_processor.fetch_volumes("marvel", 5)
 ```
 
 ### Environment Setup
@@ -157,22 +157,23 @@ echo "COMICVINE_API_KEY=your_api_key_here" > .env
 ```python
 # Run folder creation (creates all required directories)
 import comic_processor
+
 comic_processor.create_folders()
 
 # Fetch and process comics
-comics = comic_processor.fetch_comics('spider-man', 10)
+comics = comic_processor.fetch_comics("spider-man", 10)
 for comic in comics:
-    print(comic['name'])
+    print(comic["name"])
 ```
 
 ### Using ComicVine API Functions
 
 ```python
 # Search for comics
-comics = comic_processor.fetch_comics('superman', 5)
+comics = comic_processor.fetch_comics("superman", 5)
 
-# Search for volumes  
-volumes = comic_processor.fetch_volumes('dc', 5)
+# Search for volumes
+volumes = comic_processor.fetch_volumes("dc", 5)
 
 # Get specific item by ID
 comic = comic_processor.fetch_comic_by_id(12345)

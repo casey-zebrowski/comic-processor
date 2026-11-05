@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 folder = Path.cwd().name
 files = [
@@ -23,9 +22,7 @@ if len(set(targets)) != len(targets):
     raise SystemExit("Aborting: multiple files map to the same target")
 
 conflicts = [
-    target.name
-    for source, target in mappings
-    if target.exists() and target != source
+    target.name for source, target in mappings if target.exists() and target != source
 ]
 if conflicts:
     raise SystemExit(f"Aborting: target files already exist: {conflicts}")

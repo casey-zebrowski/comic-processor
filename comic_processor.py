@@ -95,6 +95,7 @@ def _record_comicvine_response(response, data: Any) -> None:
         }
     )
 
+
 # ComicVine API configuration
 COMICVINE_API_BASE = "https://comicvine.gamespot.com/api"
 API_KEY = os.getenv("COMICVINE_API_KEY") or os.getenv("VITE_COMICVINE_API_KEY")
@@ -107,11 +108,15 @@ COMICVINE_HEADERS = {
 def _safe_comicvine_error(error):
     """Remove API credentials from request exceptions before logging them."""
     message = re.sub(
-        r"([?&](?:api_key|key)=)[^&\s]+", r"\1[REDACTED]", str(error), flags=re.IGNORECASE
+        r"([?&](?:api_key|key)=)[^&\s]+",
+        r"\1[REDACTED]",
+        str(error),
+        flags=re.IGNORECASE,
     )
     if API_KEY:
         message = message.replace(API_KEY, "[REDACTED]")
     return message
+
 
 # Komga configuration
 KOMGA_LIBRARY_PATH = os.getenv("KOMGA_LIBRARY_PATH")
@@ -120,6 +125,7 @@ KOMGA_API_KEY = os.getenv("KOMGA_API_KEY")
 KOMGA_SMB_PATH = os.getenv("KOMGA_SMB_PATH")
 KOMGA_SMB_USERNAME = os.getenv("KOMGA_SMB_USERNAME")
 KOMGA_SMB_PASSWORD = os.getenv("KOMGA_SMB_PASSWORD")
+
 
 def move_to_komga(file_path: str) -> None:
     """Move a comic file to the Komga library directory or notify Komga of a new comic"""
@@ -231,7 +237,6 @@ def fetch_comics(query: str, limit: int = 10) -> list[dict[str, Any]]:
         )
 
     try:
-
         response = requests.get(
             f"{COMICVINE_API_BASE}/search/",
             params={

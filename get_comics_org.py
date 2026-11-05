@@ -1,25 +1,24 @@
-#!/usr/bin/env python3
 """Export unique GetComics links from every page of a yearly archive."""
 
 from __future__ import annotations
 
 import argparse
 import csv
-from html.parser import HTMLParser
 import os
-from pathlib import Path
 import re
 import sys
 import time
+from html.parser import HTMLParser
+from pathlib import Path
 
-import requests
+import requests  # type: ignore[import-untyped]
 from dotenv import load_dotenv
-
 
 ENV_PATH = Path(__file__).resolve().with_name(".env")
 load_dotenv(ENV_PATH)
 
 EXCLUDED_LINK_PREFIXES = (
+    "https://getcomics.org/wp-admin/",
     "https://getcomics.org/cat/",
     "https://getcomics.org/tag/",
     "https://getcomics.org/?s=",
@@ -130,7 +129,11 @@ def read_existing_rows(output_path: Path) -> dict[str, str]:
 
 
 def fetch_page(
-    session: requests.Session, url: str, timeout: float, retry_count: int, delay_seconds: float
+    session: requests.Session,
+    url: str,
+    timeout: float,
+    retry_count: int,
+    delay_seconds: float,
 ) -> ArchivePageParser:
     """Fetch and parse one archive page, retrying transient request failures."""
     for attempt in range(retry_count + 1):
@@ -154,7 +157,11 @@ def fetch_page(
 
 
 def get_max_page(
-    session: requests.Session, year: str, timeout: float, retry_count: int, delay_seconds: float
+    session: requests.Session,
+    year: str,
+    timeout: float,
+    retry_count: int,
+    delay_seconds: float,
 ) -> int:
     """Return the highest pagination entry shown for *year*."""
     url = archive_url(year)
@@ -187,7 +194,9 @@ def export_links(
             time.sleep(delay_seconds)
             url = archive_url(year, page_number)
             print(f"Fetching page {page_number} of {max_page}: {url}", file=sys.stderr)
-            for link in fetch_page(session, url, timeout, retry_count, delay_seconds).links:
+            for link in fetch_page(
+                session, url, timeout, retry_count, delay_seconds
+            ).links:
                 if should_export_link(link):
                     links.setdefault(link, None)
 
@@ -216,7 +225,10 @@ def main() -> int:
         help="directory for the CSV (default: ../get_comics_org)",
     )
     argument_parser.add_argument(
-        "--timeout", type=float, default=30.0, help="HTTP timeout in seconds (default: 30)"
+        "--timeout",
+        type=float,
+        default=30.0,
+        help="HTTP timeout in seconds (default: 30)",
     )
     argument_parser.add_argument(
         "--delay",

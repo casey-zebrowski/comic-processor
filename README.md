@@ -89,4 +89,8 @@ To update existing CBZ folders from their embedded `ComicInfo.xml` metadata, run
 - `test_archive_extraction.py` contains archive extraction examples/tests.
 - `YOLO_TRAINING.md` documents how to prepare data and train a YOLO barcode-region detector, and describes the integration needed to replace the current OpenCV-based rectangle detection.
 
+## Utilities
+
+Run `python tools/renumber_files.py /path/to/folder` to rename the visible files directly in a folder to `001`, `002`, and so on, while preserving each file's extension. Files are processed in natural filename order; hidden files and subdirectories are not changed.
+
 Configure Komga with the relevant `KOMGA_*` variables shown in `.env.example` before calling the Komga integration functions.

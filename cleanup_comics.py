@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Merge w2/w3 into working and remove leading numeric filename labels."""
 
 from __future__ import annotations
@@ -10,10 +9,8 @@ import shutil
 import stat
 from pathlib import Path
 
-
 PREFIX = re.compile(
-    r"^(?P<number>\d{1,3}(?:\.\d+)+|\d+)"
-    r"(?:(?:\.\s+)|(?:\s*-\s+)|(?:\s+))"
+    r"^(?P<number>\d{1,3}(?:\.\d+)+|\d+)" r"(?:(?:\.\s+)|(?:\s*-\s+)|(?:\s+))"
 )
 IMMUTABLE_FLAG = getattr(stat, "UF_IMMUTABLE", 0)
 
@@ -42,7 +39,9 @@ def merge_sources(base: Path, apply: bool) -> tuple[int, int, int]:
 
             destination = working / source.relative_to(source_root)
             if destination.exists() and not destination.is_file():
-                raise RuntimeError(f"File/directory conflict: {source} -> {destination}")
+                raise RuntimeError(
+                    f"File/directory conflict: {source} -> {destination}"
+                )
 
             if not destination.exists():
                 action = "move"
@@ -107,7 +106,9 @@ def rename_plan(working: Path) -> list[tuple[Path, Path]]:
     for destination, sources in list(projected.items()):
         if len(sources) < 2:
             continue
-        if not all(source.is_file() and PREFIX.match(source.name) for source in sources):
+        if not all(
+            source.is_file() and PREFIX.match(source.name) for source in sources
+        ):
             raise RuntimeError(
                 f"Cannot safely resolve rename collision at {destination}: "
                 + ", ".join(str(source) for source in sources)
@@ -136,7 +137,11 @@ def rename_plan(working: Path) -> list[tuple[Path, Path]]:
         if destination.exists() and destination not in sources:
             raise RuntimeError(f"Rename destination already exists: {destination}")
 
-    return [(source, destination) for source, destination in plans.items() if source != destination]
+    return [
+        (source, destination)
+        for source, destination in plans.items()
+        if source != destination
+    ]
 
 
 def main() -> None:
@@ -177,7 +182,9 @@ def main() -> None:
     )
     print(f"Filename/folder prefixes to remove: {len(renames)}")
     if not args.apply:
-        print("Source files moved during apply will also be checked for numeric prefixes.")
+        print(
+            "Source files moved during apply will also be checked for numeric prefixes."
+        )
 
 
 if __name__ == "__main__":

@@ -20,7 +20,6 @@ from pathlib import Path
 
 from comic_processor import fetch_volume_by_id, fetch_volumes
 
-
 LOGGER = logging.getLogger("refresh_comicvine_deck_names")
 CACHE_PATH = Path(__file__).with_name("comicvine_deck_refresh_cache.json")
 
@@ -86,7 +85,9 @@ def load_cache(path):
 
 def save_cache(path, cache):
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(cache, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(cache, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
@@ -150,7 +151,9 @@ def plan_folder(folder, archive_paths, cache, cache_path):
 
     identities = {(series.casefold(), year) for _, _, series, year in values_by_archive}
     if len(identities) != 1:
-        raise ValueError("Archives in this folder do not share the same series and year")
+        raise ValueError(
+            "Archives in this folder do not share the same series and year"
+        )
 
     _, _, series, year = values_by_archive[0]
     key = volume_cache_key(series, year)
@@ -175,12 +178,16 @@ def plan_folder(folder, archive_paths, cache, cache_path):
         destination_name = f"{clean_name} (v{volume_number})({destination_year})"
     else:
         destination_name = f"{clean_name} ({destination_year})"
-    destination = unique_path(folder.parent / destination_name) if folder.name != destination_name else folder
+    destination = (
+        unique_path(folder.parent / destination_name)
+        if folder.name != destination_name
+        else folder
+    )
     renames = []
     for archive_path, values, _, _ in values_by_archive:
         old_stem = archive_path.stem
         if old_stem.startswith(folder.name):
-            tail = old_stem[len(folder.name):]
+            tail = old_stem[len(folder.name) :]
         else:
             issue = old_stem.rsplit(" - ", 1)[-1]
             tail = f" - {issue}"
@@ -189,7 +196,11 @@ def plan_folder(folder, archive_paths, cache, cache_path):
             continue
         desired = unique_path(desired) if os.path.lexists(desired) else desired
         renames.append((archive_path, desired))
-    return {"source_folder": folder, "destination_folder": destination, "renames": renames}, volume
+    return {
+        "source_folder": folder,
+        "destination_folder": destination,
+        "renames": renames,
+    }, volume
 
 
 def apply_folder_plan(plan):
@@ -197,7 +208,9 @@ def apply_folder_plan(plan):
     destination = plan["destination_folder"]
     if source != destination:
         if os.path.lexists(destination):
-            raise FileExistsError(f"Destination appeared while processing: {destination}")
+            raise FileExistsError(
+                f"Destination appeared while processing: {destination}"
+            )
         source.rename(destination)
     for old_path, planned_path in plan["renames"]:
         new_path = destination / planned_path.name
@@ -213,7 +226,9 @@ def apply_folder_plan(plan):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("/Volumes/comics"))
-    parser.add_argument("--apply", action="store_true", help="perform the planned renames")
+    parser.add_argument(
+        "--apply", action="store_true", help="perform the planned renames"
+    )
     parser.add_argument("--max-lookups", type=int, default=450)
     parser.add_argument(
         "--cached-only",
@@ -240,9 +255,16 @@ def main():
     renamed_archives = 0
     skipped = 0
     errors = 0
-    for folder in sorted((path for path in root.iterdir() if path.is_dir()), key=lambda p: p.name.casefold()):
+    for folder in sorted(
+        (path for path in root.iterdir() if path.is_dir()),
+        key=lambda p: p.name.casefold(),
+    ):
         archives = sorted(
-            (path for path in folder.iterdir() if path.is_file() and path.suffix.casefold() == ".cbz"),
+            (
+                path
+                for path in folder.iterdir()
+                if path.is_file() and path.suffix.casefold() == ".cbz"
+            ),
             key=lambda p: p.name.casefold(),
         )
         if not archives:
@@ -250,29 +272,47 @@ def main():
         try:
             first_values = read_comic_info(archives[0])
             key = volume_cache_key(
-                first_values.get("series", ""), start_year_for_folder(folder, first_values)
+                first_values.get("series", ""),
+                start_year_for_folder(folder, first_values),
             )
             if args.cached_only and key not in cache:
                 skipped += 1
                 continue
             if key not in cache:
                 if completed_lookups >= args.max_lookups:
-                    LOGGER.info("Reached --max-lookups=%d; rerun later to continue.", args.max_lookups)
+                    LOGGER.info(
+                        "Reached --max-lookups=%d; rerun later to continue.",
+                        args.max_lookups,
+                    )
                     break
                 completed_lookups += 1
             plan, volume = plan_folder(folder, archives, cache, args.cache)
             if not plan:
                 skipped += 1
                 if volume.get("status") != "matched":
-                    LOGGER.warning("Skipped %s: ComicVine match count %s", folder.name, volume.get("match_count"))
+                    LOGGER.warning(
+                        "Skipped %s: ComicVine match count %s",
+                        folder.name,
+                        volume.get("match_count"),
+                    )
                 continue
-            if not plan["renames"] and plan["source_folder"] == plan["destination_folder"]:
+            if (
+                not plan["renames"]
+                and plan["source_folder"] == plan["destination_folder"]
+            ):
                 skipped += 1
                 continue
-            LOGGER.info("%s -> %s (%d CBZ)", folder.name, plan["destination_folder"].name, len(plan["renames"]))
+            LOGGER.info(
+                "%s -> %s (%d CBZ)",
+                folder.name,
+                plan["destination_folder"].name,
+                len(plan["renames"]),
+            )
             if args.apply:
                 apply_folder_plan(plan)
-                renamed_folders += int(plan["source_folder"] != plan["destination_folder"])
+                renamed_folders += int(
+                    plan["source_folder"] != plan["destination_folder"]
+                )
                 renamed_archives += len(plan["renames"])
         except ComicVineLookupError as error:
             errors += 1

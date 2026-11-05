@@ -16,12 +16,12 @@ import zxingcpp
 from PIL import Image, ImageDraw, UnidentifiedImageError
 
 from comic_processor import (
+    capture_comicvine_calls,
     extract_archive,
     fetch_comic_by_id,
     fetch_issues_by_volume_and_number,
     fetch_volume_by_id,
     fetch_volumes,
-    capture_comicvine_calls,
 )
 
 logger = logging.getLogger(__name__)
@@ -330,7 +330,13 @@ def find_barcode_rectangle(image):
         ):
             continue
 
-        for barcode_left, barcode_top, barcode_right, barcode_bottom, barcode_area in seed_bounds:
+        for (
+            barcode_left,
+            barcode_top,
+            barcode_right,
+            barcode_bottom,
+            barcode_area,
+        ) in seed_bounds:
             if (
                 x <= barcode_left
                 and y <= barcode_top
@@ -380,7 +386,16 @@ def find_barcode_rectangle(image):
 def process_barcode_removal(base_dir):
     """Cover the first lower-half barcode found in each issue folder."""
     stage_dir = os.path.join(base_dir, PROCESS_REMOVE_BARCODE_DIR_NAME)
-    image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff")
+    image_extensions = (
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+    )
     folders = [
         os.path.join(stage_dir, name)
         for name in sorted(os.listdir(stage_dir))
@@ -472,10 +487,7 @@ def lookup_volume_and_issue(folder_name):
         volume
         for volume in volumes
         if str(volume.get("name", "")).strip().casefold() == volume_name.casefold()
-        and (
-            not expected_year
-            or str(volume.get("start_year", "")) == expected_year
-        )
+        and (not expected_year or str(volume.get("start_year", "")) == expected_year)
     ]
     if len(matching_volumes) != 1:
         raise ValueError(
@@ -614,9 +626,9 @@ def write_comicvine_debug_files(destination_dir, comic_folder_name, calls):
     if not logger.isEnabledFor(logging.DEBUG) or not calls:
         return
 
-    safe_comic_name = re.sub(
-        r'[<>:"/\\|?*]', "_", comic_folder_name
-    ).strip(" .") or "comic"
+    safe_comic_name = (
+        re.sub(r'[<>:"/\\|?*]', "_", comic_folder_name).strip(" .") or "comic"
+    )
     try:
         os.makedirs(destination_dir, exist_ok=True)
         for index, call in enumerate(calls, start=1):
@@ -627,7 +639,9 @@ def write_comicvine_debug_files(destination_dir, comic_folder_name, calls):
                 debug_file.write("\n")
             logger.debug(f"Wrote ComicVine response data: {debug_path}")
     except OSError as error:
-        logger.error(f"Could not write ComicVine debug data to {destination_dir}: {error}")
+        logger.error(
+            f"Could not write ComicVine debug data to {destination_dir}: {error}"
+        )
 
 
 def build_comic_info_xml(volume, issue, page_count):
@@ -736,7 +750,7 @@ def process_completed_folders(base_dir):
                 archive_completed_issue(
                     folder_path, done_dir, os.path.join(base_dir, TRASH_DIR_NAME)
                 )
-            except Exception as error:
+            except (OSError, ValueError, zipfile.BadZipFile) as error:
                 logger.error(f"ComicVine processing failed for {folder_name}: {error}")
 
 
@@ -904,7 +918,9 @@ def main():
             convert_comic_files(base_dir)
 
         if barcode_processing_skipped():
-            logger.info("Skipping barcode processing because SKIP_BARCODE_PROCESSING=true")
+            logger.info(
+                "Skipping barcode processing because SKIP_BARCODE_PROCESSING=true"
+            )
         else:
             process_barcode_removal(base_dir)
         process_completed_folders(base_dir)

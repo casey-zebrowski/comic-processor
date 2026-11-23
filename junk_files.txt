@@ -6,6 +6,7 @@ xbluntmanx*
 xsou5b*
 xtag01*
 xx-meganubis-xx*
+xxx_shadow_final*
 z-just*
 z-pink*
 z-soldier*
@@ -20,17 +21,21 @@ zexplode*
 zexplode*
 zeyes*
 zfacex*
+zfbtag1*
 zfire*
+zkiss*
 zlima*
 zmost*
 zshadow*
 zsou-nerd*
+zthe-hand*
 zthe-hand*
 ztube*
 zvfe*
 zwater*
 zwind*
 zworld*
+zxcd*
 zzbroadcast*
 zzmegan*
 zzshamil*
@@ -40,5 +45,6 @@ zzz-empire*
 zzz-zone-empire*
 zzzglorithsolo*
 zzzone*
+zzzzshadowcat001*
+zzzzz*
 zzzzzzzz*
-zzzzShadowcat001*
